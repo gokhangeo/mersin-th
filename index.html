@@ -100,12 +100,12 @@
         <div id="chart-container" class="bg-white rounded-xl shadow-md p-4 mb-6 hidden">
              <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
                 <div class="relative h-96">
-                    <h2 class="text-xl font-bold text-center text-gray-700 mb-4">Nitelik Dağılımı (Pasta Grafik)</h2>
-                    <canvas id="pieChart"></canvas>
+                    <h2 class="text-xl font-bold text-center text-gray-700 mb-4">Nitelik Bazlı Alan Dağılımı</h2>
+                    <canvas id="nitelikBarChart"></canvas>
                 </div>
                 <div class="relative h-96">
-                    <h2 class="text-xl font-bold text-center text-gray-700 mb-4">En Büyük 15 Nitelik (Çubuk Grafik)</h2>
-                    <canvas id="barChart"></canvas>
+                    <h2 class="text-xl font-bold text-center text-gray-700 mb-4">İlçe Bazlı Karşılaştırma</h2>
+                    <canvas id="ilceBarChart"></canvas>
                 </div>
              </div>
         </div>
@@ -379,7 +379,7 @@
             let allData = [];
             let currentIlce = 'Genel Toplam';
             let currentSort = { key: null, direction: 'asc' };
-            let pieChartInstance, barChartInstance;
+            let nitelikBarChartInstance, ilceBarChartInstance;
 
             function formatNumber(num) {
                 return new Intl.NumberFormat('tr-TR').format(num);
@@ -425,115 +425,80 @@
             }
             
             function renderCharts(data) {
-                renderPieChart(data);
-                renderBarChart(data);
+                renderNitelikBarChart(data);
+                renderIlceBarChart();
             }
 
-            function renderPieChart(data){
-                const ctx = document.getElementById('pieChart').getContext('2d');
-                if (pieChartInstance) pieChartInstance.destroy();
-
-                const chartData = data.filter(d => d.yuzolcumM2 > 0);
-                const totalSize = chartData.reduce((sum, d) => sum + d.yuzolcumM2, 0);
-
-                const pieData = [];
-                const pieLabels = [];
-                let othersTotal = 0;
-
-                chartData.sort((a,b) => b.yuzolcumM2 - a.yuzolcumM2).forEach(d => {
-                    if ((d.yuzolcumM2 / totalSize) < 0.01) { // %1'den küçükleri topla
-                        othersTotal += d.yuzolcumM2;
-                    } else {
-                        pieData.push(d.yuzolcumM2);
-                        pieLabels.push(d.nitelik);
-                    }
-                });
-                
-                if (othersTotal > 0) {
-                    pieData.push(othersTotal);
-                    pieLabels.push('Diğerleri');
-                }
-
-                pieChartInstance = new Chart(ctx, {
-                    type: 'pie',
-                    data: {
-                        labels: pieLabels,
-                        datasets: [{
-                            label: 'Yüzölçüm (m²)',
-                            data: pieData,
-                            backgroundColor: [
-                                '#4C78A8', '#F58518', '#E45756', '#72B7B2', '#54A24B',
-                                '#EECA3B', '#B279A2', '#FF9DA6', '#9D755D', '#BAB0AC',
-                                '#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3', '#a6d854'
-                            ],
-                            hoverOffset: 4
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                position: 'top',
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        const label = context.label || '';
-                                        const value = context.raw || 0;
-                                        const percentage = ((value / totalSize) * 100).toFixed(2);
-                                        return `${label}: ${formatNumber(value)} m² (${percentage}%)`;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-            }
-
-            function renderBarChart(data){
-                const ctx = document.getElementById('barChart').getContext('2d');
-                if (barChartInstance) barChartInstance.destroy();
+            function renderNitelikBarChart(data){
+                const ctx = document.getElementById('nitelikBarChart').getContext('2d');
+                if (nitelikBarChartInstance) nitelikBarChartInstance.destroy();
 
                 const chartData = [...data]
                     .filter(d => d.yuzolcumM2 > 0)
                     .sort((a,b) => b.yuzolcumM2 - a.yuzolcumM2)
                     .slice(0, 15);
 
-                barChartInstance = new Chart(ctx, {
+                nitelikBarChartInstance = new Chart(ctx, {
                     type: 'bar',
                     data: {
                         labels: chartData.map(d => d.nitelik),
                         datasets: [{
                             label: 'Yüzölçüm (m²)',
                             data: chartData.map(d => d.yuzolcumM2),
-                            backgroundColor: '#3b82f6',
-                            borderColor: '#1e40af',
-                            borderWidth: 1
+                            backgroundColor: '#4C78A8',
                         }]
                     },
                     options: {
                         indexAxis: 'y',
                         responsive: true,
                         maintainAspectRatio: false,
-                         plugins: {
-                            legend: {
-                                display: false
-                            },
-                             tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        const value = context.raw || 0;
-                                        return ` ${formatNumber(value)} m²`;
-                                    }
-                                }
-                            }
-                        },
-                        scales: {
-                            x: {
-                                beginAtZero: true
-                            }
-                        }
+                         plugins: { legend: { display: false } },
+                        scales: { x: { beginAtZero: true } }
+                    }
+                });
+            }
+
+            function renderIlceBarChart(){
+                const ctx = document.getElementById('ilceBarChart').getContext('2d');
+                if (ilceBarChartInstance) ilceBarChartInstance.destroy();
+                
+                const searchTerm = searchInput.value.trim();
+                if (!searchTerm) {
+                    // Eğer arama kutusu boşsa, grafiği temizle ve bir mesaj göster
+                    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                    ctx.font = "16px Inter";
+                    ctx.fillStyle = "#6b7280";
+                    ctx.textAlign = "center";
+                    ctx.fillText("İlçe karşılaştırması için bir nitelik arayın.", ctx.canvas.width / 2, ctx.canvas.height / 2);
+                    return;
+                }
+
+                const filteredByNitelik = allData.filter(d => d.nitelik.toLowerCase().includes(searchTerm.toLowerCase()) && d.ilce !== 'Genel Toplam' && d.yuzolcumM2 > 0);
+                
+                const chartData = filteredByNitelik.sort((a,b) => b.yuzolcumM2 - a.yuzolcumM2);
+
+                const backgroundColors = [
+                    '#4C78A8', '#F58518', '#E45756', '#72B7B2', '#54A24B',
+                    '#EECA3B', '#B279A2', '#FF9DA6', '#9D755D', '#BAB0AC',
+                    '#66c2a5', '#fc8d62', '#8da0cb'
+                ];
+
+                ilceBarChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: chartData.map(d => d.ilce),
+                        datasets: [{
+                            label: `${searchTerm} Alan Dağılımı (m²)`,
+                            data: chartData.map(d => d.yuzolcumM2),
+                            backgroundColor: chartData.map((_, i) => backgroundColors[i % backgroundColors.length]),
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { x: { beginAtZero: true } }
                     }
                 });
             }
@@ -576,8 +541,7 @@
                 let filteredData = completeDistrictData;
                 if (searchTerm) {
                     filteredData = filteredData.filter(item =>
-                        item.nitelik.toLowerCase().includes(searchTerm) ||
-                        item.kod.toLowerCase().includes(searchTerm)
+                        item.nitelik.toLowerCase().includes(searchTerm)
                     );
                 }
 
