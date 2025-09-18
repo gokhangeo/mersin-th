@@ -30,6 +30,17 @@
         .table-container::-webkit-scrollbar-thumb:hover {
             background: #555;
         }
+        th .sort-icon {
+            opacity: 0.3;
+            transition: opacity 0.2s;
+        }
+        th:hover .sort-icon {
+            opacity: 0.7;
+        }
+        th .sort-icon.active {
+            opacity: 1;
+            color: #2563eb;
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -39,6 +50,7 @@
         <!-- Başlık Bölümü -->
         <header class="text-center mb-8">
             <h1 class="text-3xl md:text-4xl font-bold text-gray-700">MERSİN İLİ ARAZİ NİTELİK TABLOSU</h1>
+            <p class="text-gray-600 mt-2 text-sm">© Gökhan ELGÜL tarafından tasarlanmıştır.</p>
             <p class="text-gray-500 mt-2">İlçe seçerek arazi niteliklerini arayın, filtreleyin ve özet bilgileri görüntüleyin.</p>
         </header>
 
@@ -88,9 +100,24 @@
                         <tr>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Nitelik</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Kod</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Ekonomik Değeri</th>
-                            <th scope="col" class="px-6 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">Yüzölçüm (m²)</th>
-                            <th scope="col" class="px-6 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">Yüzölçüm (ha)</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider cursor-pointer" data-sort-by="ekonomikDegeri">
+                                <div class="flex items-center">
+                                    <span>Ekonomik Değeri</span>
+                                    <svg class="w-4 h-4 ml-1 sort-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"></path></svg>
+                                </div>
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider cursor-pointer" data-sort-by="yuzolcumM2">
+                                <div class="flex items-center justify-end">
+                                    <span>Yüzölçüm (m²)</span>
+                                    <svg class="w-4 h-4 ml-1 sort-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"></path></svg>
+                                </div>
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider cursor-pointer" data-sort-by="yuzolcumHa">
+                                <div class="flex items-center justify-end">
+                                    <span>Yüzölçüm (ha)</span>
+                                    <svg class="w-4 h-4 ml-1 sort-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"></path></svg>
+                                </div>
+                            </th>
                         </tr>
                     </thead>
                     <tbody id="data-table" class="bg-white divide-y divide-gray-200">
@@ -311,6 +338,7 @@
 
             let allData = [];
             let currentIlce = 'Genel Toplam';
+            let currentSort = { key: null, direction: 'asc' };
 
             function formatNumber(num) {
                 return new Intl.NumberFormat('tr-TR').format(num);
@@ -359,7 +387,7 @@
                 
                 const districtRawData = allData.filter(item => item.ilce === currentIlce);
 
-                const completeDistrictData = nitelikSiralama.map(nitelikName => {
+                let completeDistrictData = nitelikSiralama.map(nitelikName => {
                     const existingItem = districtRawData.find(item => item.nitelik === nitelikName);
                     if (existingItem) {
                         return existingItem;
@@ -394,6 +422,22 @@
                         item.kod.toLowerCase().includes(searchTerm)
                     );
                 }
+
+                // Sorting logic
+                if (currentSort.key) {
+                    filteredData.sort((a, b) => {
+                        const valA = a[currentSort.key];
+                        const valB = b[currentSort.key];
+                        const direction = currentSort.direction === 'asc' ? 1 : -1;
+                        
+                        if (typeof valA === 'string') {
+                            return valA.localeCompare(valB) * direction;
+                        } else {
+                            return (valA - valB) * direction;
+                        }
+                    });
+                }
+                // No else needed, default order is already by nitelikSiralama from creation
 
                 renderTable(filteredData);
             }
@@ -484,11 +528,35 @@
             ilceSelect.addEventListener('change', (e) => {
                 currentIlce = e.target.value;
                 searchInput.value = '';
+                currentSort = { key: null, direction: 'asc' }; // Reset sort
+                document.querySelectorAll('th .sort-icon').forEach(icon => icon.classList.remove('active'));
                 updateView();
             });
 
             searchInput.addEventListener('input', updateView);
             downloadButton.addEventListener('click', downloadExcel);
+
+            document.querySelectorAll('th[data-sort-by]').forEach(th => {
+                th.addEventListener('click', () => {
+                    const sortKey = th.dataset.sortBy;
+                    let direction = 'asc';
+                    
+                    if (currentSort.key === sortKey) {
+                        direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        // Numeric columns default to descending
+                        direction = (sortKey === 'yuzolcumM2' || sortKey === 'yuzolcumHa') ? 'desc' : 'asc';
+                    }
+                    
+                    currentSort = { key: sortKey, direction };
+
+                    // Update UI
+                    document.querySelectorAll('th .sort-icon').forEach(icon => icon.classList.remove('active'));
+                    th.querySelector('.sort-icon').classList.add('active');
+
+                    updateView();
+                });
+            });
 
             async function init() {
                 try {
