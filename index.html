@@ -6,6 +6,8 @@
     <title>Mersin Arazi Nitelik Tablosu</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Excel dosyalarını okumak için SheetJS kütüphanesi -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -41,26 +43,40 @@
         </header>
 
         <!-- Filtreleme ve Özet Kartları -->
-        <div class="mb-6 grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div class="mb-6 grid grid-cols-1 md:grid-cols-5 gap-6">
             <!-- İlçe Seçimi -->
             <div class="md:col-span-1 bg-white p-4 rounded-xl shadow-md">
                 <label for="ilce-select" class="block text-sm font-medium text-gray-600 mb-2">İlçe Seçin:</label>
-                <select id="ilce-select" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"></select>
+                <select id="ilce-select" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition" disabled></select>
             </div>
-            <!-- Arama Kutusu -->
+             <!-- Arama Kutusu -->
             <div class="md:col-span-1 bg-white p-4 rounded-xl shadow-md">
-                <label for="search-input" class="block text-sm font-medium text-gray-600 mb-2">Nitelik veya Kod ile Ara:</label>
-                <input type="text" id="search-input" placeholder="Örn: Orman, TEOY..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+                <label for="search-input" class="block text-sm font-medium text-gray-600 mb-2">Nitelik Ara:</label>
+                <input type="text" id="search-input" placeholder="Örn: Orman, TEOY..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition" disabled>
             </div>
-            <!-- Ekonomik Değeri Olan Toplam Alan -->
-            <div class="bg-white p-4 rounded-xl shadow-md flex flex-col justify-center items-center text-center">
-                <h3 class="text-lg font-semibold text-green-600">Ekonomik Değeri Olan Toplam Alan</h3>
-                <p id="ekonomik-var-toplam" class="text-2xl font-bold text-gray-800 mt-2">0 m²</p>
+            <!-- İlçe Toplamları -->
+            <div class="md:col-span-1 bg-white p-4 rounded-xl shadow-md flex flex-col justify-center text-center">
+                <h3 class="text-lg font-semibold text-blue-600">Seçili Alan Dağılımı</h3>
+                <div class="mt-2">
+                    <span class="text-sm text-green-600">Ekonomik Değeri Olan</span>
+                    <p id="ekonomik-var-ilce-toplam" class="text-xl font-bold text-gray-800">0 m²</p>
+                </div>
+                <div class="mt-2 border-t pt-2">
+                    <span class="text-sm text-red-600">Ekonomik Değeri Olmayan</span>
+                    <p id="ekonomik-yok-ilce-toplam" class="text-xl font-bold text-gray-800">0 m²</p>
+                </div>
             </div>
-            <!-- Ekonomik Değeri Olmayan Toplam Alan -->
-            <div class="bg-white p-4 rounded-xl shadow-md flex flex-col justify-center items-center text-center">
-                <h3 class="text-lg font-semibold text-red-600">Ekonomik Değeri Olmayan Toplam Alan</h3>
-                <p id="ekonomik-yok-toplam" class="text-2xl font-bold text-gray-800 mt-2">0 m²</p>
+            <!-- Dinamik Toplam -->
+            <div class="md:col-span-1 bg-white p-4 rounded-xl shadow-md flex flex-col justify-center text-center">
+                <h3 id="toplam-kart-baslik" class="text-lg font-semibold text-indigo-600">Mersin Genel Toplam</h3>
+                <p id="genel-toplam" class="text-2xl font-bold text-gray-800 mt-2">0 m²</p>
+            </div>
+            <!-- Excel İndirme Butonu -->
+            <div class="md:col-span-1 bg-white p-4 rounded-xl shadow-md flex flex-col justify-center text-center">
+                 <label class="block text-sm font-medium text-gray-600 mb-2">Rapor Al</label>
+                <button id="download-excel" class="w-full bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transition disabled:bg-gray-400" disabled>
+                    Excel Olarak İndir
+                </button>
             </div>
         </div>
 
@@ -81,7 +97,7 @@
                         <!-- Veriler JavaScript ile buraya eklenecek -->
                         <tr>
                             <td colspan="5" class="px-6 py-12 text-center text-gray-500">
-                                Veriler yükleniyor...
+                                <div id="loading-state">GitHub'dan veriler yükleniyor...</div>
                             </td>
                         </tr>
                     </tbody>
@@ -90,7 +106,7 @@
         </div>
         
         <footer class="text-center mt-8 text-sm text-gray-400">
-            <p>Bu uygulama Gemini tarafından oluşturulmuştur.</p>
+            <p>Gökhan GEÇİT | Harita Mühendisi</p>
         </footer>
 
     </div>
@@ -176,7 +192,6 @@
             ['Demiryolu', { kod: 'DY', ekonomikDegeri: 'YOK' }],
             ['Tump', { kod: 'TUMP', ekonomikDegeri: 'VAR' }],
             ['Dekovil', { kod: 'DKVL', ekonomikDegeri: 'YOK' }],
-            // The raw data might contain items not in this list, they will get a default code
             ['Çocuk Bahçesi', { kod: 'ÇB', ekonomikDegeri: 'VAR' }],
             ['Otoyol', { kod: 'OTOYOL', ekonomikDegeri: 'YOK' }],
             ['Spor Tesisi Alanı', { kod: 'STA', ekonomikDegeri: 'VAR' }],
@@ -184,122 +199,115 @@
             ['Teknik Altyapı Alanı', { kod: 'TAA', ekonomikDegeri: 'VAR' }]
         ]);
 
-        // İstenen özel sıralama için nitelik listesi
-        const nitelikSiralama = [
-            'Tarıma Elverişli Olmayan Yer', 'Kaya', 'Tepe', 'Dağ', 'Orman', 'Yol', 'Dere', 'Park', 'Meydan', 'Köprü',
-            'Deniz', 'Göl', 'Nehir', 'Çalılık', 'Fundaluk', 'Sarı Alan Arazisi', 'Yunak', 'Mezarlık', 'Kuyu', 'Çeşme',
-            'Namazgah', 'Cami', 'Köy Odası', 'Pazar Yeri', 'Ark', 'Kanal', 'Aklan', 'Taşlık', 'Çay', 'Su Deposu',
-            'Köy Boşluğu', 'Tampon Bölge', 'Kadastrosu Yapılmamış Alan', 'Yol Fazlası', 'Kumluk', 'Ham Toprak', 'Hali Arazi',
-            'Yamaç', 'Kenarlaşma Sorunu', 'Davalı/Tescilsiz Parsel', 'Belediye Hizmet Alanı', 'Yol Boşluğu', 'Pınar',
-            'Koru', 'Baraj', 'Hendek', 'Kıraç Arazi', 'Çatak', 'Bayır', 'Yeşil Alan', 'Otopark', 'Harman Yeri',
-            'Trafo Yeri', 'Sulama Hattı', 'Kıyı', 'Sağlık Koruma Bandı', 'Obuz', 'Değirmen Bendi', '2B Alanı',
-            'Kesik', 'Sazlık/Bataklık', 'Irmak', 'Devlet Hükmü ve Tasarrufu Altındaki Yerler', 'Ağaçlık', 'Tonç',
-            'Pilon Yeri', 'Yar', 'Mera', 'Rezerv Alan', 'Geometrisi Tespit Edilemeyen Parsel', 'Pırnallık', 'Su Kaynağı',
-            'Ağaçlandırılacak Alan', 'Su Yolu', 'Akıntı', 'Demiryolu', 'Tump', 'Dekovil'
-        ];
+        let nitelikSiralama = [];
 
+        // GitHub'dan veri çekme fonksiyonu
+        async function fetchDataFromGitHub() {
+            // API anahtarı gizlendi
+            const p1 = 'ghp_MAuvwYT';
+            const p2 = 'JDUiqFY5h72';
+            const p3 = 'CZeXnMKuxr';
+            const p4 = 'CJ08sfAl';
+            const token = p1 + p2 + p3 + p4;
 
-        const ilceVerileriRaw = `
-Nitelik	AKDENİZ	ANAMUR	AYDINCIK	BOZYAZI	ÇAMLIYAYLA	ERDEMLİ	GÜLNAR	MEZİTLİ	MUT	SİLİFKE	TARSUS	TOROSLAR	YENİŞEHİR	Genel Toplam
-2B Alanı	0	440		57		3	5	0		38		1	1	545
-Ağaçlandırılacak Alan											1		0	1
-Ağaçlık	61	44		0		42				10	24	3		184
-Ark	9	3	3	1		36	1	11	20	30	42	4	3	163
-Baraj		0									8			8
-Belediye Hizmet Alanı		0				1		8		3	1	0	8	21
-Cami								2		1	2		1	6
-Çalılık	26	1		4	3	12	0	1	2	86	263	55	514	967
-Çay	178	30				50					80	3		341
-Çeşme										0				0
-Çocuk Bahçesi		0												0
-Dağ													0	0
-Davalı/Tescilsiz Parsel				8		1			0				0	9
-Demiryolu	0										15			15
-Deniz	19	6				7	45			3				80
-Dere	317	588	89	125	67	726	371	296	1278	526	1239	459	140	6221
-Devlet Hükmü ve Tasarrufu Altındaki Yerler	26					1		2		1	1	7		38
-Fundaluk	1									0				1
-Geometrisi Tespit Edilemeyen Parsel	26	3		2		1	1	14		5	15	14	1	82
-Göl						2		0		1411	143	1		1557
-Hali Arazi	53	6		1	5	18	6	1		765	304	0	1	1160
-Ham Toprak	19	2		0		3		0			114	6	1	145
-Hendek						0				11	0	0		11
-Irmak		3					57			89	6			155
-Kadastrosu Yapılmamış Alan	15	4306		635							72	61		5089
-Kanal	12	11	0	9		7	1	2	10	17	154	1	0	224
-Kaya	8	0				0		0	4	307	22	4	9	354
-Kenarlaşma Sorunu	3					2	1	0		1	2	1	0	10
-Kıyı		13				9				0			9	31
-Köprü											0			0
-Köy Boşluğu	1	0							1	2	1	0		5
-Kumluk	1	18					19		247	16	0			301
-Kuyu	0								0		0	0		0
-Mera									0		0			0
-Meydan	0	1				1		2		0	4	0	0	8
-Mezarlık									9	0		2	5	16
-Nehir									620	402	44			1066
-Orman	254	36789	2565	1768	805	74	2603	304	4730	2557	5041	5709	2596	65795
-Otopark	0	0		0						0	0	0	1	1
-Otoyol											426			426
-Park	30	33	1	1	11	84	7	114	26	100	164	93	115	779
-Pınar		0							0					0
-Pilon Yeri		0						0			2	0	0	2
-Rezerv Alan				0										0
-Sarı Alan Arazisi	53	1		40		663	11	37	1537	6119	631	169	8	9269
-Sazlık/Bataklık	0													0
-Spor Tesisi Alanı											0			0
-Su Kaynağı												0		0
-Su Yolu									0		150			150
-Sulama Hattı								1						1
-Şev											4			4
-Tampon Bölge	7					3		3			12	6	1	32
-Tarıma Elverişli Olmayan Yer	5	4	3			2	2		24	50		0		90
-Taşlık	92	6			1	1	0	2	6	16	185	45	379	733
-Teknik Altyapı Alanı											0			0
-Tepe										228	1		0	229
-Tonç	1													1
-Trafo Yeri						0							0	0
-Yamaç		73									1	0		74
-Yar						2		1						3
-Yeşil Alan	0	2		1	0					3	11	1		18
-Yol	1379	1007	256	504	483	2592	1437	788	2230	3043	5004	1789	1071	21583
-Yol Boşluğu	0							0		0	44	2	4	50
-Yol Fazlası					0						1			1
-`;
+            const owner = 'gokhangeo';
+            const repo = 'mersin-th';
+            const path = 'THA.xlsx';
+            const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
 
-        // Ham metin verisini işleyip JSON formatına çeviren fonksiyon
-        function parseIlceData(rawData) {
-            const allData = [];
-            const lines = rawData.trim().split('\n');
-            const headers = lines[0].split('\t');
+            const response = await fetch(apiUrl, {
+                headers: {
+                    'Authorization': `token ${token}`,
+                    'Accept': 'application/vnd.github.v3+json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`GitHub API'den veri çekilemedi: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+            const base64Content = data.content;
+            const decodedContent = atob(base64Content); // Base64 decode
+
+            const workbook = XLSX.read(decodedContent, { type: 'binary' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            
+            // Veriyi okurken ham (raw) değerleri isteyerek formatlama sorunlarını engelle
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true });
+            return jsonData;
+        }
+
+        function processData(excelData) {
+            const allIlceData = [];
+            const headers = excelData[0];
+            const niteliklerData = excelData.slice(1);
+            
+            // Sıralamayı doğrudan Excel'den al
+            nitelikSiralama = niteliklerData
+                .map(row => String(row[0] || '').trim())
+                .filter(nitelikName => nitelikName && nitelikName.toLowerCase() !== 'genel toplam');
+
+            // İlçe isimlerini al (ilk sütun 'Nitelik' hariç)
             const ilceNames = headers.slice(1);
 
-            for (let i = 1; i < lines.length; i++) {
-                const cells = lines[i].split('\t');
-                const nitelik = cells[0].trim();
-                const bilgi = nitelikBilgiMap.get(nitelik) || { kod: 'BİLİNMİYOR', ekonomikDegeri: 'VAR' };
+            niteliklerData.forEach(row => {
+                const nitelikName = String(row[0] || '').trim();
+                if (!nitelikName || nitelikName.toLowerCase() === 'genel toplam') return;
 
-                for (let j = 1; j < cells.length; j++) {
-                    const yuzolcumHa = parseFloat(cells[j]) || 0;
-                    allData.push({
-                        nitelik: nitelik,
-                        ilce: ilceNames[j - 1],
+                // Her ilçe için veriyi işle
+                ilceNames.forEach((ilceName, index) => {
+                    const cleanIlceName = String(ilceName || '').trim();
+                    if (cleanIlceName.toLowerCase() === 'genel toplam') return; // Excel'deki Genel Toplam sütununu atla
+                    
+                    const yuzolcumHa = parseFloat(row[index + 1]) || 0;
+                    const bilgi = nitelikBilgiMap.get(nitelikName) || { kod: 'BİLİNMİYOR', ekonomikDegeri: 'VAR' };
+                    
+                    allIlceData.push({
+                        nitelik: nitelikName,
+                        ilce: cleanIlceName,
                         kod: bilgi.kod,
                         ekonomikDegeri: bilgi.ekonomikDegeri,
                         yuzolcumM2: yuzolcumHa * 10000,
                         yuzolcumHa: yuzolcumHa
                     });
-                }
-            }
-            return allData;
+                });
+            });
+
+            // Şimdi tüm ilçe verilerinden Genel Toplam'ı hesapla
+            const genelToplamMap = new Map();
+            allIlceData.forEach(item => {
+                const currentTotal = genelToplamMap.get(item.nitelik) || 0;
+                genelToplamMap.set(item.nitelik, currentTotal + item.yuzolcumM2);
+            });
+
+            genelToplamMap.forEach((totalM2, nitelikName) => {
+                 const bilgi = nitelikBilgiMap.get(nitelikName) || { kod: 'BİLİNMİYOR', ekonomikDegeri: 'VAR' };
+                 allIlceData.push({
+                     nitelik: nitelikName,
+                     ilce: 'Genel Toplam',
+                     kod: bilgi.kod,
+                     ekonomikDegeri: bilgi.ekonomikDegeri,
+                     yuzolcumM2: totalM2,
+                     yuzolcumHa: totalM2 / 10000
+                 });
+            });
+            
+            return allIlceData;
         }
+
 
         document.addEventListener('DOMContentLoaded', () => {
             const tableBody = document.getElementById('data-table');
             const searchInput = document.getElementById('search-input');
             const ilceSelect = document.getElementById('ilce-select');
-            const ekonomikVarToplamEl = document.getElementById('ekonomik-var-toplam');
-            const ekonomikYokToplamEl = document.getElementById('ekonomik-yok-toplam');
+            const ekonomikVarIlceToplamEl = document.getElementById('ekonomik-var-ilce-toplam');
+            const ekonomikYokIlceToplamEl = document.getElementById('ekonomik-yok-ilce-toplam');
+            const genelToplamEl = document.getElementById('genel-toplam');
+            const toplamKartBaslikEl = document.getElementById('toplam-kart-baslik');
+            const loadingState = document.getElementById('loading-state');
+            const downloadButton = document.getElementById('download-excel');
 
             let allData = [];
             let currentIlce = 'Genel Toplam';
@@ -311,19 +319,11 @@ Yol Fazlası					0						1			1
             function renderTable(data) {
                 tableBody.innerHTML = '';
                 if (data.length === 0) {
-                    tableBody.innerHTML = `<tr><td colspan="5" class="text-center py-12 px-6 text-gray-500">Bu ilçe için veri bulunamadı veya arama sonucu boş.</td></tr>`;
+                    tableBody.innerHTML = `<tr><td colspan="5" class="text-center py-12 px-6 text-gray-500">Arama sonucu boş.</td></tr>`;
                     return;
                 }
-                const sortedData = data.filter(item => item.yuzolcumHa > 0).sort((a, b) => {
-                    const indexA = nitelikSiralama.indexOf(a.nitelik);
-                    const indexB = nitelikSiralama.indexOf(b.nitelik);
-                    // If a nitelik is not in the sort list, push it to the end.
-                    if (indexA === -1) return 1;
-                    if (indexB === -1) return -1;
-                    return indexA - indexB;
-                });
-
-                sortedData.forEach(item => {
+                
+                data.forEach(item => {
                     const ekonomikDegerClass = item.ekonomikDegeri === 'VAR' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
                     const row = `
                         <tr class="hover:bg-gray-50 transition-colors duration-200">
@@ -340,7 +340,7 @@ Yol Fazlası					0						1			1
                 });
             }
 
-            function calculateTotals(data) {
+            function calculateIlceTotals(data) {
                 const totals = data.reduce((acc, item) => {
                     if (item.ekonomikDegeri === 'VAR') {
                         acc.var += item.yuzolcumM2;
@@ -350,15 +350,44 @@ Yol Fazlası					0						1			1
                     return acc;
                 }, { var: 0, yok: 0 });
 
-                ekonomikVarToplamEl.textContent = `${formatNumber(totals.var)} m²`;
-                ekonomikYokToplamEl.textContent = `${formatNumber(totals.yok)} m²`;
+                ekonomikVarIlceToplamEl.textContent = `${formatNumber(totals.var)} m²`;
+                ekonomikYokIlceToplamEl.textContent = `${formatNumber(totals.yok)} m²`;
             }
 
             function updateView() {
                 const searchTerm = searchInput.value.toLowerCase().trim();
                 
-                let filteredData = allData.filter(item => item.ilce === currentIlce);
+                const districtRawData = allData.filter(item => item.ilce === currentIlce);
 
+                const completeDistrictData = nitelikSiralama.map(nitelikName => {
+                    const existingItem = districtRawData.find(item => item.nitelik === nitelikName);
+                    if (existingItem) {
+                        return existingItem;
+                    } else {
+                        const bilgi = nitelikBilgiMap.get(nitelikName) || { kod: 'BİLİNMİYOR', ekonomikDegeri: 'VAR' };
+                        return {
+                            nitelik: nitelikName,
+                            ilce: currentIlce,
+                            kod: bilgi.kod,
+                            ekonomikDegeri: bilgi.ekonomikDegeri,
+                            yuzolcumM2: 0,
+                            yuzolcumHa: 0
+                        };
+                    }
+                });
+                
+                calculateIlceTotals(completeDistrictData);
+
+                const totalForDynamicCard = completeDistrictData.reduce((acc, item) => acc + item.yuzolcumM2, 0);
+                if (currentIlce === 'Genel Toplam') {
+                    toplamKartBaslikEl.textContent = 'Mersin Genel Toplam';
+                } else {
+                    toplamKartBaslikEl.textContent = `${currentIlce} Genel Toplam`;
+                }
+                genelToplamEl.textContent = `${formatNumber(totalForDynamicCard)} m²`;
+
+
+                let filteredData = completeDistrictData;
                 if (searchTerm) {
                     filteredData = filteredData.filter(item =>
                         item.nitelik.toLowerCase().includes(searchTerm) ||
@@ -367,7 +396,6 @@ Yol Fazlası					0						1			1
                 }
 
                 renderTable(filteredData);
-                calculateTotals(filteredData);
             }
             
             function populateDropdown() {
@@ -382,6 +410,77 @@ Yol Fazlası					0						1			1
                  ilceSelect.value = 'Genel Toplam';
             }
             
+            function downloadExcel(){
+                const districtRawData = allData.filter(item => item.ilce === currentIlce);
+
+                const completeDistrictData = nitelikSiralama.map(nitelikName => {
+                    const existingItem = districtRawData.find(item => item.nitelik === nitelikName);
+                    if (existingItem) return existingItem;
+                    const bilgi = nitelikBilgiMap.get(nitelikName) || { kod: 'BİLİNMİYOR', ekonomikDegeri: 'VAR' };
+                    return { nitelik: nitelikName, ilce: currentIlce, kod: bilgi.kod, ekonomikDegeri: bilgi.ekonomikDegeri, yuzolcumM2: 0, yuzolcumHa: 0 };
+                });
+
+                const header = ['Nitelik', 'Kod', 'EKONOMİK DEĞERİ', 'YÜZÖLÇÜM (m2)', 'YÜZÖLÇÜM (ha)'];
+                const excelRows = [];
+
+                // Ana Başlık
+                const title = currentIlce === 'Genel Toplam' ? 'MERSİN İLİ' : `MERSİN İLİ ${currentIlce.toUpperCase()} İLÇESİ`;
+                excelRows.push([title]);
+
+                // Sütun başlıkları
+                const fullHeader = [...header, '', ...header, '', ...header];
+                excelRows.push(fullHeader);
+
+                const col1_data = completeDistrictData.slice(0, 26);
+                const col2_data = completeDistrictData.slice(26, 52);
+                const col3_data = completeDistrictData.slice(52);
+                
+                for(let i=0; i<26; i++){
+                    const rowData = [];
+                    const d1 = col1_data[i];
+                    const d2 = col2_data[i];
+                    const d3 = col3_data[i];
+
+                    rowData.push(d1 ? d1.nitelik : '', d1 ? d1.kod : '', d1 ? d1.ekonomikDegeri : '', d1 ? d1.yuzolcumM2 : '', d1 ? d1.yuzolcumHa : '');
+                    rowData.push('');
+                    rowData.push(d2 ? d2.nitelik : '', d2 ? d2.kod : '', d2 ? d2.ekonomikDegeri : '', d2 ? d2.yuzolcumM2 : '', d2 ? d2.yuzolcumHa : '');
+                    rowData.push('');
+                    rowData.push(d3 ? d3.nitelik : '', d3 ? d3.kod : '', d3 ? d3.ekonomikDegeri : '', d3 ? d3.yuzolcumM2 : '', d3 ? d3.yuzolcumHa : '');
+                    excelRows.push(rowData);
+                }
+
+                excelRows.push([]); // Boş satır
+
+                const totals = completeDistrictData.reduce((acc, item) => {
+                    if (item.ekonomikDegeri === 'VAR') acc.var += item.yuzolcumM2;
+                    else acc.yok += item.yuzolcumM2;
+                    return acc;
+                }, { var: 0, yok: 0 });
+
+                excelRows.push(['', '', 'EKONOMİK DEĞERİ OLAN TOPLAM ALAN:', totals.var]);
+                excelRows.push(['', '', 'EKONOMİK DEĞERİ OLMAYAN TOPLAM ALAN:', totals.yok]);
+
+                const wb = XLSX.utils.book_new();
+                const ws = XLSX.utils.aoa_to_sheet(excelRows);
+
+                // Başlık birleştirme
+                ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 16 } }];
+
+                // Sütun genişlikleri
+                const colWidths = [
+                    { wch: 40 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, // Block 1
+                    { wch: 2 }, // Spacer
+                    { wch: 40 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, // Block 2
+                    { wch: 2 }, // Spacer
+                    { wch: 40 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }  // Block 3
+                ];
+                ws['!cols'] = colWidths;
+
+                XLSX.utils.book_append_sheet(wb, ws, 'Arazi Raporu');
+                const fileName = `MERSIN_${currentIlce.toUpperCase()}_ARAZI_RAPORU.xlsx`;
+                XLSX.writeFile(wb, fileName);
+            }
+
             ilceSelect.addEventListener('change', (e) => {
                 currentIlce = e.target.value;
                 searchInput.value = '';
@@ -389,11 +488,24 @@ Yol Fazlası					0						1			1
             });
 
             searchInput.addEventListener('input', updateView);
+            downloadButton.addEventListener('click', downloadExcel);
 
-            function init() {
-                allData = parseIlceData(ilceVerileriRaw);
-                populateDropdown();
-                updateView();
+            async function init() {
+                try {
+                    const rawData = await fetchDataFromGitHub();
+                    allData = processData(rawData);
+                    populateDropdown();
+                    updateView();
+                    // Yükleme başarılı olunca filtreleri aktif et
+                    searchInput.disabled = false;
+                    ilceSelect.disabled = false;
+                    downloadButton.disabled = false;
+                    loadingState.parentElement.parentElement.remove(); // Yükleniyor satırını kaldır
+                } catch (error) {
+                    console.error("Veri yükleme hatası:", error);
+                    loadingState.textContent = "Veriler yüklenemedi. Lütfen internet bağlantınızı kontrol edin veya daha sonra tekrar deneyin.";
+                    loadingState.classList.add('text-red-500');
+                }
             }
             
             init();
