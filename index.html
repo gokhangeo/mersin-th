@@ -413,13 +413,13 @@
                 if (pieChartInstance) pieChartInstance.destroy();
 
                 const chartData = data.filter(d => d.yuzolcumM2 > 0);
-                const totalSize = d3.sum(chartData, d => d.yuzolcumM2);
+                const totalSize = chartData.reduce((sum, d) => sum + d.yuzolcumM2, 0);
 
                 const pieData = [];
                 const pieLabels = [];
                 let othersTotal = 0;
 
-                chartData.forEach(d => {
+                chartData.sort((a,b) => b.yuzolcumM2 - a.yuzolcumM2).forEach(d => {
                     if ((d.yuzolcumM2 / totalSize) < 0.01) { // %1'den küçükleri topla
                         othersTotal += d.yuzolcumM2;
                     } else {
@@ -440,7 +440,11 @@
                         datasets: [{
                             label: 'Yüzölçüm (m²)',
                             data: pieData,
-                            backgroundColor: d3.schemeCategory10.concat(d3.schemePaired),
+                            backgroundColor: [
+                                '#4C78A8', '#F58518', '#E45756', '#72B7B2', '#54A24B',
+                                '#EECA3B', '#B279A2', '#FF9DA6', '#9D755D', '#BAB0AC',
+                                '#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3', '#a6d854'
+                            ],
                             hoverOffset: 4
                         }]
                     },
@@ -723,5 +727,4 @@
 
 </body>
 </html>
-
 
