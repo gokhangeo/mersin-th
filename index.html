@@ -17,10 +17,12 @@
         .table-container {
             max-height: 60vh;
             overflow-y: auto;
+            overflow-x: auto; /* Mobil cihazlarda tabloyu yatay kaydırılabilir yapar */
         }
         /* Custom scrollbar for better aesthetics */
         .table-container::-webkit-scrollbar {
             width: 8px;
+            height: 8px;
         }
         .table-container::-webkit-scrollbar-track {
             background: #f1f1f1;
@@ -57,7 +59,7 @@
         </header>
 
         <!-- Filtreleme ve Özet Kartları -->
-        <div class="mb-6 grid grid-cols-1 md:grid-cols-5 gap-6 items-end">
+        <div class="mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 items-end">
             <!-- İlçe Seçimi -->
             <div class="bg-white p-4 rounded-xl shadow-md">
                 <label for="ilce-select" class="block text-sm font-medium text-gray-600 mb-2">İlçe Seçin:</label>
@@ -69,7 +71,7 @@
                 <input type="text" id="search-input" placeholder="Örn: Orman, TEOY..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition" disabled>
             </div>
             <!-- İlçe Toplamları -->
-            <div class="md:col-span-1 bg-white p-4 rounded-xl shadow-md flex flex-col justify-center text-center">
+            <div class="sm:col-span-1 bg-white p-4 rounded-xl shadow-md flex flex-col justify-center text-center">
                 <h3 class="text-lg font-semibold text-blue-600">Seçili Alan Dağılımı</h3>
                 <div class="mt-2">
                     <span class="text-sm text-green-600">Ekonomik Değeri Olan</span>
@@ -81,12 +83,12 @@
                 </div>
             </div>
             <!-- Dinamik Toplam -->
-            <div class="md:col-span-1 bg-white p-4 rounded-xl shadow-md flex flex-col justify-center text-center">
+            <div class="sm:col-span-1 bg-white p-4 rounded-xl shadow-md flex flex-col justify-center text-center">
                 <h3 id="toplam-kart-baslik" class="text-lg font-semibold text-indigo-600">Mersin Genel Toplam</h3>
                 <p id="genel-toplam" class="text-2xl font-bold text-gray-800 mt-2">0 m²</p>
             </div>
             <!-- Butonlar -->
-            <div class="bg-white p-4 rounded-xl shadow-md flex flex-col justify-center text-center space-y-2">
+            <div class="sm:col-span-2 lg:col-span-1 bg-white p-4 rounded-xl shadow-md flex flex-col justify-center text-center space-y-2">
                  <button id="toggle-chart" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition disabled:bg-gray-400" disabled>
                     Grafikleri Göster/Gizle
                 </button>
@@ -589,16 +591,40 @@
                     return { nitelik: nitelikName, ilce: currentIlce, kod: bilgi.kod, adet: 0, ekonomikDegeri: bilgi.ekonomikDegeri, yuzolcumM2: 0, yuzolcumHa: 0 };
                 });
 
-                const header = ['Nitelik', 'Kod', 'Adet', 'EKONOMİK DEĞERİ', 'YÜZÖLÇÜM (m2)', 'YÜZÖLÇÜM (ha)'];
-                const excelRows = [];
+                const wb = XLSX.utils.book_new();
+                const ws_data = [];
 
                 // Ana Başlık
                 const title = currentIlce === 'Genel Toplam' ? 'MERSİN İLİ' : `MERSİN İLİ ${currentIlce.toUpperCase()} İLÇESİ`;
-                excelRows.push([title]);
+                ws_data.push([title]);
 
+                // Boş satır
+                ws_data.push([]);
+                
+                // Başlıklar için stil objeleri
+                const headerStyle = {
+                    font: { bold: true },
+                    alignment: { horizontal: "center", vertical: "center" },
+                    fill: { fgColor: { rgb: "D3D3D3" } }, // Light Gray
+                    border: {
+                        top: { style: "thin" }, bottom: { style: "thin" },
+                        left: { style: "thin" }, right: { style: "thin" }
+                    }
+                };
+                
+                const cellStyle = {
+                    alignment: { horizontal: "center", vertical: "center" },
+                     border: {
+                        top: { style: "thin" }, bottom: { style: "thin" },
+                        left: { style: "thin" }, right: { style: "thin" }
+                    }
+                };
+
+                const header = ['Nitelik', 'Kod', 'Adet', 'EKONOMİK DEĞERİ', 'YÜZÖLÇÜM (m2)', 'YÜZÖLÇÜM (ha)'];
+                
                 // Sütun başlıkları
                 const fullHeader = [...header, '', ...header, '', ...header];
-                excelRows.push(fullHeader);
+                ws_data.push(fullHeader);
 
                 const col1_data = completeDistrictData.slice(0, 26);
                 const col2_data = completeDistrictData.slice(26, 52);
@@ -610,15 +636,15 @@
                     const d2 = col2_data[i];
                     const d3 = col3_data[i];
 
-                    rowData.push(d1 ? d1.nitelik : '', d1 ? d1.kod : '', d1 ? d1.adet : '', d1 ? d1.ekonomikDegeri : '', d1 ? d1.yuzolcumM2 : '', d1 ? d1.yuzolcumHa : '');
-                    rowData.push('');
-                    rowData.push(d2 ? d2.nitelik : '', d2 ? d2.kod : '', d2 ? d2.adet : '', d2 ? d2.ekonomikDegeri : '', d2 ? d2.yuzolcumM2 : '', d2 ? d2.yuzolcumHa : '');
-                    rowData.push('');
-                    rowData.push(d3 ? d3.nitelik : '', d3 ? d3.kod : '', d3 ? d3.adet : '', d3 ? d3.ekonomikDegeri : '', d3 ? d3.yuzolcumM2 : '', d3 ? d3.yuzolcumHa : '');
-                    excelRows.push(rowData);
+                    rowData.push(d1 ? d1.nitelik : null, d1 ? d1.kod : null, d1 ? d1.adet : null, d1 ? d1.ekonomikDegeri : null, d1 ? d1.yuzolcumM2 : null, d1 ? d1.yuzolcumHa : null);
+                    rowData.push(null);
+                    rowData.push(d2 ? d2.nitelik : null, d2 ? d2.kod : null, d2 ? d2.adet : null, d2 ? d2.ekonomikDegeri : null, d2 ? d2.yuzolcumM2 : null, d2 ? d2.yuzolcumHa : null);
+                    rowData.push(null);
+                    rowData.push(d3 ? d3.nitelik : null, d3 ? d3.kod : null, d3 ? d3.adet : null, d3 ? d3.ekonomikDegeri : null, d3 ? d3.yuzolcumM2 : null, d3 ? d3.yuzolcumHa : null);
+                    ws_data.push(rowData);
                 }
 
-                excelRows.push([]); // Boş satır
+                ws_data.push([]); // Boş satır
 
                 const totals = completeDistrictData.reduce((acc, item) => {
                     if (item.ekonomikDegeri === 'VAR') acc.var += item.yuzolcumM2;
@@ -626,14 +652,36 @@
                     return acc;
                 }, { var: 0, yok: 0 });
 
-                excelRows.push(['', '', '', 'EKONOMİK DEĞERİ OLAN TOPLAM ALAN:', totals.var]);
-                excelRows.push(['', '', '', 'EKONOMİK DEĞERİ OLMAYAN TOPLAM ALAN:', totals.yok]);
+                ws_data.push([null, null, null, 'EKONOMİK DEĞERİ OLAN TOPLAM ALAN:', totals.var]);
+                ws_data.push([null, null, null, 'EKONOMİK DEĞERİ OLMAYAN TOPLAM ALAN:', totals.yok]);
 
-                const wb = XLSX.utils.book_new();
-                const ws = XLSX.utils.aoa_to_sheet(excelRows);
+                const ws = XLSX.utils.aoa_to_sheet(ws_data);
+                
+                // Hücrelere stil uygulama
+                Object.keys(ws).forEach(cellAddress => {
+                    if(cellAddress === '!ref' || cellAddress === '!merges' || cellAddress === '!cols') return;
+                    
+                    const cell = ws[cellAddress];
+                    const { r, c } = XLSX.utils.decode_cell(cellAddress);
+
+                    // Başlık satırı stili
+                    if(r === 2) {
+                        cell.s = headerStyle;
+                    } 
+                    // Veri hücreleri stili
+                    else if (r > 2 && r < 29) {
+                        cell.s = cellStyle;
+                    }
+                    // Toplam satırları stili
+                    else if (r > 29) {
+                         cell.s = { ...cellStyle, font: { bold: true } };
+                    }
+                });
+
 
                 // Başlık birleştirme
-                ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 19 } }];
+                ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 17 } }];
+                ws["A1"].s = { font: { bold: true, sz: 16 }, alignment: { horizontal: "center", vertical: "center" }};
 
                 // Sütun genişlikleri
                 const colWidths = [
