@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mersin Arazi Nitelik Tablosu</title>
+    <title>Mersin İli THA Analizi</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Excel dosyalarını okumak için SheetJS kütüphanesi -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <!-- D3.js Kütüphanesi -->
-    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <!-- Chart.js Kütüphanesi -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -43,18 +43,6 @@
             opacity: 1;
             color: #2563eb;
         }
-        .tooltip {
-            position: absolute;
-            text-align: center;
-            padding: 8px;
-            font-size: 12px;
-            background: lightsteelblue;
-            border: 0;
-            border-radius: 8px;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.2s;
-        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -63,7 +51,7 @@
         
         <!-- Başlık Bölümü -->
         <header class="text-center mb-8">
-            <h1 class="text-3xl md:text-4xl font-bold text-gray-700">MERSİN İLİ ARAZİ NİTELİK TABLOSU</h1>
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-700">MERSİN İLİ THA ANALİZİ</h1>
             <p class="text-gray-600 mt-2 text-sm">© Gökhan ELGÜL tarafından tasarlanmıştır.</p>
             <p class="text-gray-500 mt-2">İlçe seçerek arazi niteliklerini arayın, filtreleyin ve özet bilgileri görüntüleyin.</p>
         </header>
@@ -100,20 +88,27 @@
             <!-- Butonlar -->
             <div class="bg-white p-4 rounded-xl shadow-md flex flex-col justify-center text-center space-y-2">
                  <button id="toggle-chart" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition disabled:bg-gray-400" disabled>
-                    Grafiği Göster/Gizle
+                    Grafikleri Göster/Gizle
                 </button>
                 <button id="download-excel" class="w-full bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 transition disabled:bg-gray-400" disabled>
                     Excel Olarak İndir
                 </button>
             </div>
         </div>
-
-        <!-- Treemap Grafik Bölümü -->
-        <div id="treemap-container" class="bg-white rounded-xl shadow-md p-4 mb-6 hidden">
-             <h2 class="text-xl font-bold text-center text-gray-700 mb-4">Nitelik Dağılımı (Treemap)</h2>
-             <div id="treemap"></div>
+        
+        <!-- Grafik Bölümü -->
+        <div id="chart-container" class="bg-white rounded-xl shadow-md p-4 mb-6 hidden">
+             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div>
+                    <h2 class="text-xl font-bold text-center text-gray-700 mb-4">Nitelik Dağılımı (Pasta Grafik)</h2>
+                    <canvas id="pieChart"></canvas>
+                </div>
+                <div>
+                    <h2 class="text-xl font-bold text-center text-gray-700 mb-4">En Büyük 15 Nitelik (Çubuk Grafik)</h2>
+                    <canvas id="barChart"></canvas>
+                </div>
+             </div>
         </div>
-
 
         <!-- Tablo Bölümü -->
         <div class="bg-white rounded-xl shadow-md overflow-hidden">
@@ -160,8 +155,6 @@
         </footer>
 
     </div>
-    
-    <div id="tooltip" class="tooltip"></div>
 
     <script>
         // Niteliklerin kod ve ekonomik değer bilgilerini içeren harita.
@@ -361,12 +354,12 @@
             const loadingState = document.getElementById('loading-state');
             const downloadButton = document.getElementById('download-excel');
             const toggleChartButton = document.getElementById('toggle-chart');
-            const treemapContainer = document.getElementById('treemap-container');
-            const tooltip = d3.select("#tooltip");
-
+            const chartContainer = document.getElementById('chart-container');
+            
             let allData = [];
             let currentIlce = 'Genel Toplam';
             let currentSort = { key: null, direction: 'asc' };
+            let pieChartInstance, barChartInstance;
 
             function formatNumber(num) {
                 return new Intl.NumberFormat('tr-TR').format(num);
@@ -410,99 +403,114 @@
                 ekonomikYokIlceToplamEl.textContent = `${formatNumber(totals.yok)} m²`;
             }
             
-            function renderTreemap(data) {
-                const chartData = data.filter(d => d.yuzolcumM2 > 0);
-                const totalSize = d3.sum(chartData, d => d.yuzolcumM2);
-                
-                const hierarchy = {
-                    name: "root",
-                    children: chartData.map(d => ({ name: d.nitelik, value: d.yuzolcumM2 }))
-                };
-                
-                const width = document.getElementById('treemap').clientWidth;
-                const height = 500;
-
-                d3.select("#treemap").select("svg").remove();
-
-                const svg = d3.select("#treemap")
-                    .append("svg")
-                    .attr("width", width)
-                    .attr("height", height);
-
-                const root = d3.hierarchy(hierarchy)
-                    .sum(d => Math.sqrt(d.value)) // Use sqrt scale for better visibility
-                    .sort((a, b) => b.value - a.value);
-
-                const treemapLayout = d3.treemap()
-                    .size([width, height])
-                    .padding(2);
-
-                treemapLayout(root);
-                
-                const color = d3.scaleOrdinal(d3.schemeCategory10);
-
-                const nodes = svg.selectAll("g")
-                    .data(root.leaves())
-                    .join("g")
-                    .attr("transform", d => `translate(${d.x0}, ${d.y0})`);
-
-                nodes.append("rect")
-                    .attr("width", d => d.x1 - d.x0)
-                    .attr("height", d => d.y1 - d.y0)
-                    .attr("fill", d => color(d.data.name))
-                    .on("mouseover", (event, d) => {
-                        tooltip.style("opacity", 1);
-                    })
-                    .on("mousemove", (event, d) => {
-                        const percentage = ((d.data.value / totalSize) * 100).toFixed(2);
-                        tooltip.html(`<b>${d.data.name}</b><br>${formatNumber(d.data.value)} m² (%${percentage})`)
-                            .style("left", (event.pageX + 10) + "px")
-                            .style("top", (event.pageY - 28) + "px");
-                    })
-                    .on("mouseout", () => {
-                        tooltip.style("opacity", 0);
-                    });
-
-                nodes.append("text")
-                    .each(function(d) {
-                        const rectWidth = d.x1 - d.x0;
-                        const rectHeight = d.y1 - d.y0;
-                        if (rectWidth > 35 && rectHeight > 15) {
-                            d3.select(this)
-                                .attr("x", 4)
-                                .attr("y", 14)
-                                .text(d.data.name)
-                                .attr("font-size", "12px")
-                                .attr("fill", "white")
-                                .style("pointer-events", "none")
-                                .call(wrap, rectWidth - 8);
-                        }
-                    });
+            function renderCharts(data) {
+                renderPieChart(data);
+                renderBarChart(data);
             }
 
-            function wrap(text, width) {
-                text.each(function() {
-                    var text = d3.select(this),
-                        words = text.text().split(/\s+/).reverse(),
-                        word,
-                        line = [],
-                        lineNumber = 0,
-                        lineHeight = 1.1, // ems
-                        x = text.attr("x"),
-                        y = text.attr("y"),
-                        tspan = text.text(null).append("tspan").attr("x", x).attr("y", y);
-                    while (word = words.pop()) {
-                        line.push(word);
-                        tspan.text(line.join(" "));
-                        if (tspan.node().getComputedTextLength() > width) {
-                            line.pop();
-                            tspan.text(line.join(" "));
-                            line = [word];
-                            tspan = text.append("tspan").attr("x", x).attr("y", y).attr("dy", ++lineNumber * lineHeight + "em").text(word);
+            function renderPieChart(data){
+                const ctx = document.getElementById('pieChart').getContext('2d');
+                if (pieChartInstance) pieChartInstance.destroy();
+
+                const chartData = data.filter(d => d.yuzolcumM2 > 0);
+                const totalSize = d3.sum(chartData, d => d.yuzolcumM2);
+
+                const pieData = [];
+                const pieLabels = [];
+                let othersTotal = 0;
+
+                chartData.forEach(d => {
+                    if ((d.yuzolcumM2 / totalSize) < 0.01) { // %1'den küçükleri topla
+                        othersTotal += d.yuzolcumM2;
+                    } else {
+                        pieData.push(d.yuzolcumM2);
+                        pieLabels.push(d.nitelik);
+                    }
+                });
+                
+                if (othersTotal > 0) {
+                    pieData.push(othersTotal);
+                    pieLabels.push('Diğerleri');
+                }
+
+                pieChartInstance = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: pieLabels,
+                        datasets: [{
+                            label: 'Yüzölçüm (m²)',
+                            data: pieData,
+                            backgroundColor: d3.schemeCategory10.concat(d3.schemePaired),
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.raw || 0;
+                                        const percentage = ((value / totalSize) * 100).toFixed(2);
+                                        return `${label}: ${formatNumber(value)} m² (${percentage}%)`;
+                                    }
+                                }
+                            }
                         }
                     }
                 });
             }
+
+            function renderBarChart(data){
+                const ctx = document.getElementById('barChart').getContext('2d');
+                if (barChartInstance) barChartInstance.destroy();
+
+                const chartData = [...data]
+                    .filter(d => d.yuzolcumM2 > 0)
+                    .sort((a,b) => b.yuzolcumM2 - a.yuzolcumM2)
+                    .slice(0, 15);
+
+                barChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: chartData.map(d => d.nitelik),
+                        datasets: [{
+                            label: 'Yüzölçüm (m²)',
+                            data: chartData.map(d => d.yuzolcumM2),
+                            backgroundColor: '#3b82f6',
+                            borderColor: '#1e40af',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                         plugins: {
+                            legend: {
+                                display: false
+                            },
+                             tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const value = context.raw || 0;
+                                        return ` ${formatNumber(value)} m²`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+
 
             function updateView() {
                 const searchTerm = searchInput.value.toLowerCase().trim();
@@ -562,8 +570,8 @@
                 
                 renderTable(filteredData);
                 
-                if(!treemapContainer.classList.contains('hidden')){
-                    renderTreemap(completeDistrictData);
+                if(!chartContainer.classList.contains('hidden')){
+                    renderCharts(completeDistrictData);
                 }
             }
             
@@ -661,8 +669,8 @@
             searchInput.addEventListener('input', updateView);
             downloadButton.addEventListener('click', downloadExcel);
             toggleChartButton.addEventListener('click', () => {
-                treemapContainer.classList.toggle('hidden');
-                if(!treemapContainer.classList.contains('hidden')){
+                chartContainer.classList.toggle('hidden');
+                if(!chartContainer.classList.contains('hidden')){
                     updateView(); // Re-render chart if it was hidden
                 }
             });
@@ -715,4 +723,5 @@
 
 </body>
 </html>
+
 
