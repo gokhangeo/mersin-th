@@ -413,7 +413,7 @@
             function renderTreemap(data) {
                 const chartData = data.filter(d => d.yuzolcumM2 > 0);
                 const totalSize = d3.sum(chartData, d => d.yuzolcumM2);
-
+                
                 const hierarchy = {
                     name: "root",
                     children: chartData.map(d => ({ name: d.nitelik, value: d.yuzolcumM2 }))
@@ -430,7 +430,7 @@
                     .attr("height", height);
 
                 const root = d3.hierarchy(hierarchy)
-                    .sum(d => d.value)
+                    .sum(d => Math.sqrt(d.value)) // Use sqrt scale for better visibility
                     .sort((a, b) => b.value - a.value);
 
                 const treemapLayout = d3.treemap()
@@ -464,23 +464,44 @@
                     });
 
                 nodes.append("text")
-                    .selectAll("tspan")
-                    .data(d => {
-                        const words = d.data.name.split(/(?=[A-Z][^A-Z])/g); // Split by uppercase letters for better wrapping
-                        return words.map(word => ({ text: word, x0: d.x0, y0: d.y0, width: d.x1 - d.x0 }));
-                    })
-                    .join("tspan")
-                    .attr("x", 4)
-                    .attr("y", (d, i) => 13 + i * 10)
-                    .text(d => d.text)
-                    .attr("font-size", "12px")
-                    .attr("fill", "white")
-                    .style("pointer-events", "none")
                     .each(function(d) {
-                        if (this.getComputedTextLength() > d.width - 8) {
-                           d3.select(this).text(d.text.slice(0, Math.floor(d.width/8)) + '...');
+                        const rectWidth = d.x1 - d.x0;
+                        const rectHeight = d.y1 - d.y0;
+                        if (rectWidth > 35 && rectHeight > 15) {
+                            d3.select(this)
+                                .attr("x", 4)
+                                .attr("y", 14)
+                                .text(d.data.name)
+                                .attr("font-size", "12px")
+                                .attr("fill", "white")
+                                .style("pointer-events", "none")
+                                .call(wrap, rectWidth - 8);
                         }
                     });
+            }
+
+            function wrap(text, width) {
+                text.each(function() {
+                    var text = d3.select(this),
+                        words = text.text().split(/\s+/).reverse(),
+                        word,
+                        line = [],
+                        lineNumber = 0,
+                        lineHeight = 1.1, // ems
+                        x = text.attr("x"),
+                        y = text.attr("y"),
+                        tspan = text.text(null).append("tspan").attr("x", x).attr("y", y);
+                    while (word = words.pop()) {
+                        line.push(word);
+                        tspan.text(line.join(" "));
+                        if (tspan.node().getComputedTextLength() > width) {
+                            line.pop();
+                            tspan.text(line.join(" "));
+                            line = [word];
+                            tspan = text.append("tspan").attr("x", x).attr("y", y).attr("dy", ++lineNumber * lineHeight + "em").text(word);
+                        }
+                    }
+                });
             }
 
             function updateView() {
