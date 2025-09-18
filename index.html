@@ -98,12 +98,12 @@
         
         <!-- Grafik Bölümü -->
         <div id="chart-container" class="bg-white rounded-xl shadow-md p-4 mb-6 hidden">
-             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div>
+             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
+                <div class="relative h-96">
                     <h2 class="text-xl font-bold text-center text-gray-700 mb-4">Nitelik Dağılımı (Pasta Grafik)</h2>
                     <canvas id="pieChart"></canvas>
                 </div>
-                <div>
+                <div class="relative h-96">
                     <h2 class="text-xl font-bold text-center text-gray-700 mb-4">En Büyük 15 Nitelik (Çubuk Grafik)</h2>
                     <canvas id="barChart"></canvas>
                 </div>
@@ -118,6 +118,12 @@
                         <tr>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Nitelik</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Kod</th>
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider cursor-pointer" data-sort-by="adet">
+                                <div class="flex items-center justify-end">
+                                    <span>Adet</span>
+                                    <svg class="w-4 h-4 ml-1 sort-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"></path></svg>
+                                </div>
+                            </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider cursor-pointer" data-sort-by="ekonomikDegeri">
                                 <div class="flex items-center">
                                     <span>Ekonomik Değeri</span>
@@ -141,7 +147,7 @@
                     <tbody id="data-table" class="bg-white divide-y divide-gray-200">
                         <!-- Veriler JavaScript ile buraya eklenecek -->
                         <tr>
-                            <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+                            <td colspan="6" class="px-6 py-12 text-center text-gray-500">
                                 <div id="loading-state">GitHub'dan veriler yükleniyor...</div>
                             </td>
                         </tr>
@@ -276,43 +282,54 @@
             const decodedContent = atob(base64Content); // Base64 decode
 
             const workbook = XLSX.read(decodedContent, { type: 'binary' });
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
             
-            // Veriyi okurken ham (raw) değerleri isteyerek formatlama sorunlarını engelle
-            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true });
-            return jsonData;
+            // Yüzölçüm verisini "TH" sayfasından al
+            const thSheet = workbook.Sheets['TH'];
+            const thData = XLSX.utils.sheet_to_json(thSheet, { header: 1, raw: true });
+            
+            // Adet verisini "Adet" sayfasından al
+            const adetSheet = workbook.Sheets['Adet'];
+            const adetData = XLSX.utils.sheet_to_json(adetSheet, { header: 1, raw: true });
+
+            return { thData, adetData };
         }
 
-        function processData(excelData) {
+        function processData({thData, adetData}) {
             const allIlceData = [];
-            const headers = excelData[0];
-            const niteliklerData = excelData.slice(1);
             
-            // Sıralamayı doğrudan Excel'den al
-            nitelikSiralama = niteliklerData
+            const thHeaders = thData[0];
+            const thNitelikler = thData.slice(1);
+            nitelikSiralama = thNitelikler
                 .map(row => String(row[0] || '').trim())
                 .filter(nitelikName => nitelikName && nitelikName.toLowerCase() !== 'genel toplam');
+            
+            const adetHeaders = adetData[0];
+            const adetNitelikler = adetData.slice(1).reduce((map, row) => {
+                map[String(row[0] || '').trim()] = row;
+                return map;
+            }, {});
 
-            // İlçe isimlerini al (ilk sütun 'Nitelik' hariç)
-            const ilceNames = headers.slice(1);
+            const ilceNames = thHeaders.slice(1);
 
-            niteliklerData.forEach(row => {
+            thNitelikler.forEach(row => {
                 const nitelikName = String(row[0] || '').trim();
                 if (!nitelikName || nitelikName.toLowerCase() === 'genel toplam') return;
 
-                // Her ilçe için veriyi işle
+                const adetRow = adetNitelikler[nitelikName];
+
                 ilceNames.forEach((ilceName, index) => {
                     const cleanIlceName = String(ilceName || '').trim();
-                    if (cleanIlceName.toLowerCase() === 'genel toplam') return; // Excel'deki Genel Toplam sütununu atla
+                    if (cleanIlceName.toLowerCase() === 'genel toplam') return; 
                     
                     const yuzolcumHa = parseFloat(row[index + 1]) || 0;
+                    const adet = adetRow ? (parseInt(adetRow[index + 1]) || 0) : 0;
                     const bilgi = nitelikBilgiMap.get(nitelikName) || { kod: 'BİLİNMİYOR', ekonomikDegeri: 'VAR' };
                     
                     allIlceData.push({
                         nitelik: nitelikName,
                         ilce: cleanIlceName,
                         kod: bilgi.kod,
+                        adet: adet,
                         ekonomikDegeri: bilgi.ekonomikDegeri,
                         yuzolcumM2: yuzolcumHa * 10000,
                         yuzolcumHa: yuzolcumHa
@@ -320,22 +337,25 @@
                 });
             });
 
-            // Şimdi tüm ilçe verilerinden Genel Toplam'ı hesapla
             const genelToplamMap = new Map();
             allIlceData.forEach(item => {
-                const currentTotal = genelToplamMap.get(item.nitelik) || 0;
-                genelToplamMap.set(item.nitelik, currentTotal + item.yuzolcumM2);
+                const current = genelToplamMap.get(item.nitelik) || { yuzolcumM2: 0, adet: 0 };
+                genelToplamMap.set(item.nitelik, {
+                    yuzolcumM2: current.yuzolcumM2 + item.yuzolcumM2,
+                    adet: current.adet + item.adet
+                });
             });
 
-            genelToplamMap.forEach((totalM2, nitelikName) => {
+            genelToplamMap.forEach((totals, nitelikName) => {
                  const bilgi = nitelikBilgiMap.get(nitelikName) || { kod: 'BİLİNMİYOR', ekonomikDegeri: 'VAR' };
                  allIlceData.push({
                      nitelik: nitelikName,
                      ilce: 'Genel Toplam',
                      kod: bilgi.kod,
+                     adet: totals.adet,
                      ekonomikDegeri: bilgi.ekonomikDegeri,
-                     yuzolcumM2: totalM2,
-                     yuzolcumHa: totalM2 / 10000
+                     yuzolcumM2: totals.yuzolcumM2,
+                     yuzolcumHa: totals.yuzolcumM2 / 10000
                  });
             });
             
@@ -368,7 +388,7 @@
             function renderTable(data) {
                 tableBody.innerHTML = '';
                 if (data.length === 0) {
-                    tableBody.innerHTML = `<tr><td colspan="5" class="text-center py-12 px-6 text-gray-500">Arama sonucu boş.</td></tr>`;
+                    tableBody.innerHTML = `<tr><td colspan="6" class="text-center py-12 px-6 text-gray-500">Arama sonucu boş.</td></tr>`;
                     return;
                 }
                 
@@ -378,6 +398,7 @@
                         <tr class="hover:bg-gray-50 transition-colors duration-200">
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.nitelik}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.kod}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">${formatNumber(item.adet)}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm">
                                 <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${ekonomikDegerClass}">${item.ekonomikDegeri}</span>
                             </td>
@@ -450,6 +471,7 @@
                     },
                     options: {
                         responsive: true,
+                        maintainAspectRatio: false,
                         plugins: {
                             legend: {
                                 position: 'top',
@@ -493,6 +515,7 @@
                     options: {
                         indexAxis: 'y',
                         responsive: true,
+                        maintainAspectRatio: false,
                          plugins: {
                             legend: {
                                 display: false
@@ -531,6 +554,7 @@
                             nitelik: nitelikName,
                             ilce: currentIlce,
                             kod: bilgi.kod,
+                            adet: 0,
                             ekonomikDegeri: bilgi.ekonomikDegeri,
                             yuzolcumM2: 0,
                             yuzolcumHa: 0
@@ -598,10 +622,10 @@
                     const existingItem = districtRawData.find(item => item.nitelik === nitelikName);
                     if (existingItem) return existingItem;
                     const bilgi = nitelikBilgiMap.get(nitelikName) || { kod: 'BİLİNMİYOR', ekonomikDegeri: 'VAR' };
-                    return { nitelik: nitelikName, ilce: currentIlce, kod: bilgi.kod, ekonomikDegeri: bilgi.ekonomikDegeri, yuzolcumM2: 0, yuzolcumHa: 0 };
+                    return { nitelik: nitelikName, ilce: currentIlce, kod: bilgi.kod, adet: 0, ekonomikDegeri: bilgi.ekonomikDegeri, yuzolcumM2: 0, yuzolcumHa: 0 };
                 });
 
-                const header = ['Nitelik', 'Kod', 'EKONOMİK DEĞERİ', 'YÜZÖLÇÜM (m2)', 'YÜZÖLÇÜM (ha)'];
+                const header = ['Nitelik', 'Kod', 'Adet', 'EKONOMİK DEĞERİ', 'YÜZÖLÇÜM (m2)', 'YÜZÖLÇÜM (ha)'];
                 const excelRows = [];
 
                 // Ana Başlık
@@ -622,11 +646,11 @@
                     const d2 = col2_data[i];
                     const d3 = col3_data[i];
 
-                    rowData.push(d1 ? d1.nitelik : '', d1 ? d1.kod : '', d1 ? d1.ekonomikDegeri : '', d1 ? d1.yuzolcumM2 : '', d1 ? d1.yuzolcumHa : '');
+                    rowData.push(d1 ? d1.nitelik : '', d1 ? d1.kod : '', d1 ? d1.adet : '', d1 ? d1.ekonomikDegeri : '', d1 ? d1.yuzolcumM2 : '', d1 ? d1.yuzolcumHa : '');
                     rowData.push('');
-                    rowData.push(d2 ? d2.nitelik : '', d2 ? d2.kod : '', d2 ? d2.ekonomikDegeri : '', d2 ? d2.yuzolcumM2 : '', d2 ? d2.yuzolcumHa : '');
+                    rowData.push(d2 ? d2.nitelik : '', d2 ? d2.kod : '', d2 ? d2.adet : '', d2 ? d2.ekonomikDegeri : '', d2 ? d2.yuzolcumM2 : '', d2 ? d2.yuzolcumHa : '');
                     rowData.push('');
-                    rowData.push(d3 ? d3.nitelik : '', d3 ? d3.kod : '', d3 ? d3.ekonomikDegeri : '', d3 ? d3.yuzolcumM2 : '', d3 ? d3.yuzolcumHa : '');
+                    rowData.push(d3 ? d3.nitelik : '', d3 ? d3.kod : '', d3 ? d3.adet : '', d3 ? d3.ekonomikDegeri : '', d3 ? d3.yuzolcumM2 : '', d3 ? d3.yuzolcumHa : '');
                     excelRows.push(rowData);
                 }
 
@@ -638,22 +662,22 @@
                     return acc;
                 }, { var: 0, yok: 0 });
 
-                excelRows.push(['', '', 'EKONOMİK DEĞERİ OLAN TOPLAM ALAN:', totals.var]);
-                excelRows.push(['', '', 'EKONOMİK DEĞERİ OLMAYAN TOPLAM ALAN:', totals.yok]);
+                excelRows.push(['', '', '', 'EKONOMİK DEĞERİ OLAN TOPLAM ALAN:', totals.var]);
+                excelRows.push(['', '', '', 'EKONOMİK DEĞERİ OLMAYAN TOPLAM ALAN:', totals.yok]);
 
                 const wb = XLSX.utils.book_new();
                 const ws = XLSX.utils.aoa_to_sheet(excelRows);
 
                 // Başlık birleştirme
-                ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 16 } }];
+                ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 19 } }];
 
                 // Sütun genişlikleri
                 const colWidths = [
-                    { wch: 40 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, // Block 1
+                    { wch: 40 }, { wch: 10 }, { wch: 8 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, // Block 1
                     { wch: 2 }, // Spacer
-                    { wch: 40 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, // Block 2
+                    { wch: 40 }, { wch: 10 }, { wch: 8 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, // Block 2
                     { wch: 2 }, // Spacer
-                    { wch: 40 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }  // Block 3
+                    { wch: 40 }, { wch: 10 }, { wch: 8 }, { wch: 15 }, { wch: 15 }, { wch: 15 }  // Block 3
                 ];
                 ws['!cols'] = colWidths;
 
@@ -689,7 +713,7 @@
                         direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
                     } else {
                         // Numeric columns default to descending
-                        direction = (sortKey === 'yuzolcumM2' || sortKey === 'yuzolcumHa') ? 'desc' : 'asc';
+                        direction = (sortKey === 'yuzolcumM2' || sortKey === 'yuzolcumHa' || sortKey === 'adet') ? 'desc' : 'asc';
                     }
                     
                     currentSort = { key: sortKey, direction };
