@@ -13,13 +13,14 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
+            background: linear-gradient(to bottom, #e0f7fa, #ffffff);
+            min-height: 100vh;
         }
         .table-container {
             max-height: 60vh;
             overflow-y: auto;
             overflow-x: auto; /* Mobil cihazlarda tabloyu yatay kaydırılabilir yapar */
         }
-        /* Custom scrollbar for better aesthetics */
         .table-container::-webkit-scrollbar {
             width: 8px;
             height: 8px;
@@ -49,12 +50,36 @@
 </head>
 <body class="bg-gray-50 text-gray-800">
 
-    <div class="container mx-auto p-4 md:p-8">
+    <!-- Login Screen -->
+    <div id="login-screen" class="flex items-center justify-center min-h-screen">
+        <div class="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-lg">
+            <h2 class="text-3xl font-bold text-center text-gray-700">THA Analiz</h2>
+            <p class="text-center text-gray-500">Devam etmek için lütfen giriş yapın.</p>
+            <form id="login-form" class="space-y-6">
+                <div>
+                    <input id="username" type="text" required class="w-full px-4 py-2 text-gray-700 bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Kullanıcı Adı">
+                </div>
+                <div>
+                    <input id="password" type="password" required class="w-full px-4 py-2 text-gray-700 bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Şifre">
+                </div>
+                <div id="error-message" class="text-red-500 text-sm text-center hidden">Hatalı kullanıcı adı veya şifre.</div>
+                <div>
+                    <button type="submit" class="w-full px-4 py-2 font-bold text-white bg-green-600 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50">
+                        Giriş Yap
+                    </button>
+                </div>
+            </form>
+             <p class="text-center text-xs text-gray-400">© Gökhan ELGÜL tarafından tasarlanmıştır.</p>
+        </div>
+    </div>
+
+
+    <!-- Main Content -->
+    <div id="main-content" class="container mx-auto p-4 md:p-8 hidden">
         
         <!-- Başlık Bölümü -->
         <header class="text-center mb-8">
             <h1 class="text-3xl md:text-4xl font-bold text-gray-700">MERSİN İLİ THA ANALİZİ</h1>
-            <p class="text-gray-600 mt-2 text-sm">© Gökhan ELGÜL tarafından tasarlanmıştır.</p>
             <p class="text-gray-500 mt-2">İlçe seçerek arazi niteliklerini arayın, filtreleyin ve özet bilgileri görüntüleyin.</p>
         </header>
 
@@ -150,7 +175,7 @@
                         <!-- Veriler JavaScript ile buraya eklenecek -->
                         <tr>
                             <td colspan="6" class="px-6 py-12 text-center text-gray-500">
-                                <div id="loading-state">GitHub'dan veriler yükleniyor...</div>
+                                <div id="loading-state">Lütfen giriş yapın...</div>
                             </td>
                         </tr>
                     </tbody>
@@ -362,6 +387,10 @@
 
 
         document.addEventListener('DOMContentLoaded', () => {
+            const loginScreen = document.getElementById('login-screen');
+            const mainContent = document.getElementById('main-content');
+            const loginForm = document.getElementById('login-form');
+            const errorMessage = document.getElementById('error-message');
             const tableBody = document.getElementById('data-table');
             const searchInput = document.getElementById('search-input');
             const ilceSelect = document.getElementById('ilce-select');
@@ -666,6 +695,20 @@
                 }
             }
 
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+
+                if (username === 'mersinkm' && password === '503344') {
+                    loginScreen.classList.add('hidden');
+                    mainContent.classList.remove('hidden');
+                    init();
+                } else {
+                    errorMessage.classList.remove('hidden');
+                }
+            });
+
             ilceSelect.addEventListener('change', (e) => {
                 currentIlce = e.target.value;
                 searchInput.value = '';
@@ -707,6 +750,7 @@
             });
 
             async function init() {
+                loadingState.textContent = 'GitHub\'dan veriler yükleniyor...';
                 try {
                     const rawData = await fetchDataFromGitHub();
                     allData = processData(rawData);
@@ -725,11 +769,9 @@
                 }
             }
             
-            init();
         });
     </script>
 
 </body>
 </html>
-
 
