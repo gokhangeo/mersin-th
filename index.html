@@ -103,7 +103,10 @@
                 <div class="bg-white p-4 rounded-xl shadow"><label for="takip-ilce-filter" class="block text-sm font-medium text-gray-700">İlçeye Göre Filtrele</label><select id="takip-ilce-filter" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"></select></div>
                 <div class="bg-white p-4 rounded-xl shadow"><label for="takip-mahalle-filter" class="block text-sm font-medium text-gray-700">Mahalleye Göre Filtrele</label><select id="takip-mahalle-filter" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"></select></div>
                 <div class="bg-white p-4 rounded-xl shadow"><label for="takip-personel-filter" class="block text-sm font-medium text-gray-700">Personele Göre Filtrele</label><select id="takip-personel-filter" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"></select></div>
-                <div class="bg-white p-4 rounded-xl shadow"><button id="add-entry-btn" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700">Yeni Giriş Ekle</button></div>
+                 <div class="bg-white p-4 rounded-xl shadow flex flex-col space-y-2">
+                    <button id="add-entry-btn" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700">Yeni Giriş Ekle</button>
+                    <button id="download-takip-excel-btn" class="w-full bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700">Tabloyu İndir</button>
+                </div>
             </div>
             <div class="mb-6 bg-white p-4 rounded-xl shadow">
                 <div class="flex justify-between items-center mb-4">
@@ -394,9 +397,14 @@
             const netigmaDate = document.getElementById('netigma-date');
             const mudurDate = document.getElementById('mudur-date');
             const loadingState = document.getElementById('loading-state-takip');
+            const downloadChartBtn = document.getElementById('download-chart-btn');
+            const downloadTakipExcelBtn = document.getElementById('download-takip-excel-btn');
             let personelData = [], taskData = [], personelFileSha = '';
             let personelChartInstance;
             const GITHUB_FILE_URL = 'https://api.github.com/repos/gokhangeo/mersin-th/contents/Personel.xlsx';
+            
+            Chart.register(ChartDataLabels);
+
             async function loadTakipData() {
                  try {
                     loadingState.textContent = 'GitHub\'dan veriler okunuyor...';
@@ -415,7 +423,6 @@
                             const mahalle = row['Mahalle Adı'];
                             const personel = row['GÖREVLİ PERSONEL'];
                             if (mahalle && personel) {
-                                 personelData.push({ ilce: sheetName, mahalle, personel });
                                  const megsis = row['MEGSİS ONAY TARİHİ'] ? excelDateToJSDate(row['MEGSİS ONAY TARİHİ']) : '';
                                  const netigma = row['NETİGMA ONAY TARİHİ'] ? excelDateToJSDate(row['NETİGMA ONAY TARİHİ']) : '';
                                  const mudur = row['MÜDÜR ONAY'] ? excelDateToJSDate(row['MÜDÜR ONAY']) : '';
@@ -445,21 +452,18 @@
                 saveEntryBtn.textContent = 'Kaydediliyor...';
                 try {
                     const wb = XLSX.utils.book_new();
-                    const ilceler = [...new Set(personelData.map(p => p.ilce))].sort();
+                    const ilceler = [...new Set(taskData.map(p => p.ilce))].sort();
                     
                     ilceler.forEach(ilce => {
-                        const sheetData = personelData
+                        const sheetData = taskData
                             .filter(p => p.ilce === ilce)
-                            .map(p => {
-                                const task = taskData.find(t => t.ilce === p.ilce && t.mahalle === p.mahalle);
-                                return {
-                                    'Mahalle Adı': p.mahalle,
-                                    'GÖREVLİ PERSONEL': p.personel,
-                                    'MEGSİS ONAY TARİHİ': task ? task.megsis : undefined,
-                                    'NETİGMA ONAY TARİHİ': task ? task.netigma : undefined,
-                                    'MÜDÜR ONAY': task ? task.mudur : undefined
-                                };
-                            });
+                            .map(p => ({
+                                'Mahalle Adı': p.mahalle,
+                                'GÖREVLİ PERSONEL': p.personel,
+                                'MEGSİS ONAY TARİHİ': p.megsis || undefined,
+                                'NETİGMA ONAY TARİHİ': p.netigma || undefined,
+                                'MÜDÜR ONAY': p.mudur || undefined
+                            }));
                         const ws = XLSX.utils.json_to_sheet(sheetData);
                         XLSX.utils.book_append_sheet(wb, ws, ilce);
                     });
@@ -483,9 +487,9 @@
                 }
             }
             function populateTakipFilters() { 
-                const ilceler = ['Tümü', ...new Set(personelData.map(p => p.ilce).sort())];
-                const mahalleler = ['Tümü', ...new Set(personelData.map(p => p.mahalle).sort())];
-                const personeller = ['Tümü', ...new Set(personelData.map(p => p.personel).sort())];
+                const ilceler = ['Tümü', ...new Set(taskData.map(p => p.ilce).sort())];
+                const mahalleler = ['Tümü', ...new Set(taskData.map(p => p.mahalle).sort())];
+                const personeller = ['Tümü', ...new Set(taskData.map(p => p.personel).sort())];
 
                 ilceFilter.innerHTML = ilceler.map(i => `<option value="${i}">${i}</option>`).join('');
                 mahalleFilter.innerHTML = mahalleler.map(m => `<option value="${m}">${m}</option>`).join('');
@@ -496,20 +500,15 @@
                 const selectedMahalle = mahalleFilter.value;
                 const selectedPersonel = personelFilter.value;
 
-                let displayData = personelData.filter(p => 
-                    (selectedIlce === 'Tümü' || p.ilce === selectedIlce) &&
-                    (selectedPersonel === 'Tümü' || p.personel === selectedPersonel) &&
-                    (selectedMahalle === 'Tümü' || p.mahalle === selectedMahalle)
-                ).map(assignment => {
-                    const task = taskData.find(t => t.ilce === assignment.ilce && t.mahalle === assignment.mahalle);
-                    return {
-                        ...assignment,
-                        megsis: task ? task.megsis : '',
-                        netigma: task ? task.netigma : '',
-                        mudur: task ? task.mudur : ''
-                    };
-                }).sort((a,b) => (b.megsis || b.netigma) ? 1 : -1);
+                let displayData = taskData.filter(task => 
+                    (selectedIlce === 'Tümü' || task.ilce === selectedIlce) &&
+                    (selectedMahalle === 'Tümü' || task.mahalle === selectedMahalle) &&
+                    (selectedPersonel === 'Tümü' || task.personel === selectedPersonel)
+                );
 
+                if (selectedPersonel !== 'Tümü') {
+                    displayData.sort((a,b) => (b.megsis || b.netigma) ? 1 : (a.megsis || a.netigma) ? -1 : 0);
+                }
 
                 if(displayData.length === 0){
                     taskTable.innerHTML = `<tr><td colspan="6" class="text-center p-8 text-gray-500">Filtreye uygun kayıt bulunamadı.</td></tr>`;
@@ -534,7 +533,39 @@
                 if (personelChartInstance) personelChartInstance.destroy();
                 const personelCounts = data.reduce((acc, task) => { if(task.megsis || task.netigma) {acc[task.personel] = (acc[task.personel] || 0) + 1;} return acc; }, {});
                 const sortedPersonel = Object.entries(personelCounts).sort(([,a],[,b]) => b-a);
-                personelChartInstance = new Chart(ctx, { type: 'bar', data: { labels: sortedPersonel.map(e => e[0]), datasets: [{ label: 'Toplam Giriş Sayısı', data: sortedPersonel.map(e => e[1]), backgroundColor: '#3b82f6' }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } } });
+                personelChartInstance = new Chart(ctx, { 
+                    type: 'bar', 
+                    data: { 
+                        labels: sortedPersonel.map(e => e[0]), 
+                        datasets: [{ 
+                            label: 'Toplam Giriş Sayısı', 
+                            data: sortedPersonel.map(e => e[1]), 
+                            backgroundColor: '#3b82f6' 
+                        }] 
+                    }, 
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        plugins: {
+                            legend: { display: false },
+                            datalabels: {
+                                anchor: 'end',
+                                align: 'end',
+                                color: '#444',
+                                font: {
+                                    weight: 'bold'
+                                }
+                            }
+                        },
+                        scales: { 
+                            y: { 
+                                beginAtZero: true, 
+                                ticks: { stepSize: 1 } 
+                            } 
+                        } 
+                    },
+                    plugins: [ChartDataLabels]
+                });
             }
             function openEditModal(ilce, mahalle) { /* ... unchanged ... */ }
             async function init() {
@@ -545,17 +576,18 @@
                 
                 ilceFilter.addEventListener('change', () => {
                      const selectedIlce = ilceFilter.value;
-                     const mahalleler = ['Tümü', ...new Set(personelData.filter(p => selectedIlce === 'Tümü' || p.ilce === selectedIlce).map(p => p.mahalle).sort())];
+                     const mahalleler = ['Tümü', ...new Set(taskData.filter(p => selectedIlce === 'Tümü' || p.ilce === selectedIlce).map(p => p.mahalle).sort())];
                      mahalleFilter.innerHTML = mahalleler.map(m => `<option value="${m}">${m}</option>`).join('');
                      renderTakipTable();
                 });
                 mahalleFilter.addEventListener('change', renderTakipTable);
                 personelFilter.addEventListener('change', renderTakipTable);
+
                 addEntryBtn.addEventListener('click', () => {
                     modalTitle.textContent = 'Yeni İş Girişi';
                     modalIlce.disabled = false;
                     modalMahalle.disabled = false;
-                    const ilceler = [...new Set(personelData.map(p => p.ilce))].sort();
+                    const ilceler = [...new Set(taskData.map(p => p.ilce))].sort();
                     modalIlce.innerHTML = `<option value="">İlçe Seçin</option>` + ilceler.map(i => `<option value="${i}">${i}</option>`).join('');
                     modalMahalle.innerHTML = `<option value="">Önce İlçe Seçin</option>`;
                     modalPersonel.value = '';
@@ -566,14 +598,15 @@
                 });
                 modalIlce.addEventListener('change', () => {
                      const selectedIlce = modalIlce.value;
-                     const mahalleler = [...new Set(personelData.filter(p => p.ilce === selectedIlce).map(p => p.mahalle).sort())];
+                     const mahalleler = [...new Set(taskData.filter(p => p.ilce === selectedIlce).map(p => p.mahalle).sort())];
                      modalMahalle.innerHTML = `<option value="">Mahalle Seçin</option>` + mahalleler.map(m => `<option value="${m}">${m}</option>`).join('');
                 });
                 modalMahalle.addEventListener('change', () => {
-                    const gorevli = personelData.find(p => p.ilce === modalIlce.value && p.mahalle === modalMahalle.value);
+                    const gorevli = taskData.find(p => p.ilce === modalIlce.value && p.mahalle === modalMahalle.value);
                     modalPersonel.value = gorevli ? gorevli.personel : 'Atanmamış';
                 });
                 cancelBtn.addEventListener('click', () => modal.classList.add('hidden'));
+
                 saveEntryBtn.addEventListener('click', () => {
                     const ilce = modalIlce.value;
                     const mahalle = modalMahalle.value;
@@ -587,10 +620,19 @@
                         task.netigma = netigmaDate.value;
                         task.mudur = mudurDate.value;
                     } else { // Create new
-                        task = { ilce, mahalle, personel: modalPersonel.value, megsis: megsisDate.value, netigma: netigmaDate.value, mudur: mudurDate.value };
+                         task = { ilce, mahalle, personel: modalPersonel.value, megsis: megsisDate.value, netigma: netigmaDate.value, mudur: mudurDate.value };
                         taskData.push(task);
                     }
                     saveDataToGitHub();
+                });
+                
+                downloadChartBtn.addEventListener('click', () => {
+                    const canvas = document.getElementById('personelChart');
+                    const image = canvas.toDataURL('image/jpeg', 1.0);
+                    const link = document.createElement('a');
+                    link.href = image;
+                    link.download = 'personel-giris-grafigi.jpg';
+                    link.click();
                 });
             }
             return init;
