@@ -274,36 +274,13 @@
             function renderNitelikBarChart(data){
                 const ctx = document.getElementById('nitelikBarChart').getContext('2d');
                 if (nitelikBarChartInstance) nitelikBarChartInstance.destroy();
-
-                const chartData = [...data]
-                    .filter(d => d.yuzolcumM2 > 0)
-                    .sort((a,b) => b.yuzolcumM2 - a.yuzolcumM2)
-                    .slice(0, 15);
-
-                nitelikBarChartInstance = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: chartData.map(d => d.nitelik),
-                        datasets: [{
-                            label: 'Yüzölçüm (m²)',
-                            data: chartData.map(d => d.yuzolcumM2),
-                            backgroundColor: '#4C78A8',
-                        }]
-                    },
-                    options: {
-                        indexAxis: 'y',
-                        responsive: true,
-                        maintainAspectRatio: false,
-                         plugins: { legend: { display: false } },
-                        scales: { x: { beginAtZero: true } }
-                    }
-                });
+                const chartData = [...data].filter(d => d.yuzolcumM2 > 0).sort((a,b) => b.yuzolcumM2 - a.yuzolcumM2).slice(0, 15);
+                nitelikBarChartInstance = new Chart(ctx, { type: 'bar', data: { labels: chartData.map(d => d.nitelik), datasets: [{ label: 'Yüzölçüm (m²)', data: chartData.map(d => d.yuzolcumM2), backgroundColor: '#4C78A8' }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } } });
             }
 
             function renderIlceBarChart(){
                 const ctx = document.getElementById('ilceBarChart').getContext('2d');
                 if (ilceBarChartInstance) ilceBarChartInstance.destroy();
-                
                 const searchTerm = searchInput.value.trim();
                 if (!searchTerm) {
                     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -313,33 +290,11 @@
                     ctx.fillText("İlçe karşılaştırması için bir nitelik arayın.", ctx.canvas.width / 2, ctx.canvas.height / 2);
                     return;
                 }
-
                 const filteredByNitelik = allData.filter(d => d.nitelik.toLowerCase().includes(searchTerm.toLowerCase()) && d.ilce !== 'Genel Toplam' && d.yuzolcumM2 > 0);
-                
                 const chartData = filteredByNitelik.sort((a,b) => b.yuzolcumM2 - a.yuzolcumM2);
-
                 const backgroundColors = ['#4C78A8', '#F58518', '#E45756', '#72B7B2', '#54A24B', '#EECA3B', '#B279A2', '#FF9DA6', '#9D755D', '#BAB0AC', '#66c2a5', '#fc8d62', '#8da0cb' ];
-
-                ilceBarChartInstance = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: chartData.map(d => d.ilce),
-                        datasets: [{
-                            label: `${searchTerm} Alan Dağılımı (m²)`,
-                            data: chartData.map(d => d.yuzolcumM2),
-                            backgroundColor: chartData.map((_, i) => backgroundColors[i % backgroundColors.length]),
-                        }]
-                    },
-                    options: {
-                        indexAxis: 'y',
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
-                        scales: { x: { beginAtZero: true } }
-                    }
-                });
+                ilceBarChartInstance = new Chart(ctx, { type: 'bar', data: { labels: chartData.map(d => d.ilce), datasets: [{ label: `${searchTerm} Alan Dağılımı (m²)`, data: chartData.map(d => d.yuzolcumM2), backgroundColor: chartData.map((_, i) => backgroundColors[i % backgroundColors.length]) }] }, options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } } });
             }
-
 
             function updateThaView() {
                 const searchTerm = searchInput.value.toLowerCase().trim();
@@ -452,7 +407,6 @@
                             const mahalle = row['Mahalle Adı'];
                             const personel = row['GÖREVLİ PERSONEL'];
                             if (mahalle && personel) {
-                                 personelData.push({ ilce: sheetName, mahalle, personel });
                                  const megsis = row['MEGSİS ONAY TARİHİ'] ? excelDateToJSDate(row['MEGSİS ONAY TARİHİ']) : '';
                                  const netigma = row['NETİGMA ONAY TARİHİ'] ? excelDateToJSDate(row['NETİGMA ONAY TARİHİ']) : '';
                                  const mudur = row['MÜDÜR ONAY'] ? excelDateToJSDate(row['MÜDÜR ONAY']) : '';
@@ -482,20 +436,18 @@
                 saveEntryBtn.textContent = 'Kaydediliyor...';
                 try {
                     const wb = XLSX.utils.book_new();
-                    const ilceler = [...new Set(personelData.map(p => p.ilce))];
+                    const ilceler = [...new Set(taskData.map(p => p.ilce))].sort();
+                    
                     ilceler.forEach(ilce => {
-                        const sheetData = personelData
+                        const sheetData = taskData
                             .filter(p => p.ilce === ilce)
-                            .map(p => {
-                                const task = taskData.find(t => t.ilce === p.ilce && t.mahalle === p.mahalle);
-                                return {
-                                    'Mahalle Adı': p.mahalle,
-                                    'GÖREVLİ PERSONEL': p.personel,
-                                    'MEGSİS ONAY TARİHİ': task ? task.megsis : undefined,
-                                    'NETİGMA ONAY TARİHİ': task ? task.netigma : undefined,
-                                    'MÜDÜR ONAY': task ? task.mudur : undefined
-                                };
-                            });
+                            .map(p => ({
+                                'Mahalle Adı': p.mahalle,
+                                'GÖREVLİ PERSONEL': p.personel,
+                                'MEGSİS ONAY TARİHİ': p.megsis || undefined,
+                                'NETİGMA ONAY TARİHİ': p.netigma || undefined,
+                                'MÜDÜR ONAY': p.mudur || undefined
+                            }));
                         const ws = XLSX.utils.json_to_sheet(sheetData);
                         XLSX.utils.book_append_sheet(wb, ws, ilce);
                     });
@@ -518,16 +470,103 @@
                     modal.classList.add('hidden');
                 }
             }
-            function populateTakipFilters() { /* ... unchanged ... */ }
-            function renderTakipTable() { /* ... unchanged ... */ }
-            function renderTakipChart() { /* ... unchanged ... */ }
+            function populateTakipFilters() { 
+                const ilceler = ['Tümü', ...new Set(taskData.map(p => p.ilce).sort())];
+                const mahalleler = ['Tümü', ...new Set(taskData.map(p => p.mahalle).sort())];
+                const personeller = ['Tümü', ...new Set(taskData.map(p => p.personel).sort())];
+
+                ilceFilter.innerHTML = ilceler.map(i => `<option value="${i}">${i}</option>`).join('');
+                mahalleFilter.innerHTML = mahalleler.map(m => `<option value="${m}">${m}</option>`).join('');
+                personelFilter.innerHTML = personeller.map(p => `<option value="${p}">${p}</option>`).join('');
+             }
+            function renderTakipTable() { 
+                const selectedIlce = ilceFilter.value;
+                const selectedMahalle = mahalleFilter.value;
+                const selectedPersonel = personelFilter.value;
+
+                let displayData = taskData.filter(task => 
+                    (selectedIlce === 'Tümü' || task.ilce === selectedIlce) &&
+                    (selectedMahalle === 'Tümü' || task.mahalle === selectedMahalle) &&
+                    (selectedPersonel === 'Tümü' || task.personel === selectedPersonel)
+                );
+
+                if(displayData.length === 0){
+                    taskTable.innerHTML = `<tr><td colspan="6" class="text-center p-8 text-gray-500">Filtreye uygun kayıt bulunamadı.</td></tr>`;
+                } else {
+                     taskTable.innerHTML = displayData.map((task) => `
+                        <tr class="hover:bg-gray-50" data-task-ilce="${task.ilce}" data-task-mahalle="${task.mahalle}">
+                            <td class="px-6 py-4 whitespace-nowrap">${task.ilce}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${task.mahalle}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${task.personel}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${task.megsis || '-'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${task.netigma || '-'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${task.mudur || '-'}</td>
+                        </tr>`).join('');
+                }
+                 document.querySelectorAll('#task-table tr').forEach(row => {
+                    row.addEventListener('click', () => openEditModal(row.dataset.taskIlce, row.dataset.taskMahalle));
+                });
+                renderTakipChart(displayData);
+            }
+            function renderTakipChart(data) { 
+                const ctx = document.getElementById('personelChart').getContext('2d');
+                if (personelChartInstance) personelChartInstance.destroy();
+                const personelCounts = data.reduce((acc, task) => { if(task.megsis || task.netigma) {acc[task.personel] = (acc[task.personel] || 0) + 1;} return acc; }, {});
+                const sortedPersonel = Object.entries(personelCounts).sort(([,a],[,b]) => b-a);
+                personelChartInstance = new Chart(ctx, { type: 'bar', data: { labels: sortedPersonel.map(e => e[0]), datasets: [{ label: 'Toplam Giriş Sayısı', data: sortedPersonel.map(e => e[1]), backgroundColor: '#3b82f6' }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } } });
+            }
             function openEditModal(ilce, mahalle) { /* ... unchanged ... */ }
             async function init() {
                 if(isLoaded) return;
                 isLoaded = true;
                 isTakipLoaded = true;
                 await loadTakipData();
-                // ... (rest of the event listeners)
+
+                ilceFilter.addEventListener('change', () => {
+                     const selectedIlce = ilceFilter.value;
+                     const mahalleler = ['Tümü', ...new Set(taskData.filter(p => selectedIlce === 'Tümü' || p.ilce === selectedIlce).map(p => p.mahalle).sort())];
+                     mahalleFilter.innerHTML = mahalleler.map(m => `<option value="${m}">${m}</option>`).join('');
+                     renderTakipTable();
+                });
+                mahalleFilter.addEventListener('change', renderTakipTable);
+                personelFilter.addEventListener('change', renderTakipTable);
+                addEntryBtn.addEventListener('click', () => {
+                    modalTitle.textContent = 'Yeni İş Girişi';
+                    modalIlce.disabled = false;
+                    modalMahalle.disabled = false;
+                    const ilceler = [...new Set(taskData.map(p => p.ilce))].sort();
+                    modalIlce.innerHTML = `<option value="">İlçe Seçin</option>` + ilceler.map(i => `<option value="${i}">${i}</option>`).join('');
+                    modalMahalle.innerHTML = `<option value="">Önce İlçe Seçin</option>`;
+                    modal.classList.remove('hidden');
+                });
+                modalIlce.addEventListener('change', () => {
+                     const selectedIlce = modalIlce.value;
+                     const mahalleler = [...new Set(taskData.filter(p => p.ilce === selectedIlce).map(p => p.mahalle).sort())];
+                     modalMahalle.innerHTML = `<option value="">Mahalle Seçin</option>` + mahalleler.map(m => `<option value="${m}">${m}</option>`).join('');
+                });
+                modalMahalle.addEventListener('change', () => {
+                    const gorevli = taskData.find(p => p.ilce === modalIlce.value && p.mahalle === modalMahalle.value);
+                    modalPersonel.value = gorevli ? gorevli.personel : 'Atanmamış';
+                });
+                cancelBtn.addEventListener('click', () => modal.classList.add('hidden'));
+                saveEntryBtn.addEventListener('click', () => {
+                    const ilce = modalIlce.value;
+                    const mahalle = modalMahalle.value;
+
+                    if (!ilce || !mahalle) { alert('Lütfen ilçe ve mahalle seçin.'); return; }
+                    
+                    let task = taskData.find(t => t.ilce === ilce && t.mahalle === mahalle);
+                    
+                    if (task) { // Update existing
+                        task.megsis = megsisDate.value;
+                        task.netigma = netigmaDate.value;
+                        task.mudur = mudurDate.value;
+                    } else { // Create new
+                        task = { ilce, mahalle, personel: modalPersonel.value, megsis: megsisDate.value, netigma: netigmaDate.value, mudur: mudurDate.value };
+                        taskData.push(task);
+                    }
+                    saveDataToGitHub();
+                });
             }
             return init;
         })();
