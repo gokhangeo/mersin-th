@@ -8,6 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js Datalabels Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -103,7 +105,13 @@
                 <div class="bg-white p-4 rounded-xl shadow"><label for="takip-personel-filter" class="block text-sm font-medium text-gray-700">Personele Göre Filtrele</label><select id="takip-personel-filter" class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"></select></div>
                 <div class="bg-white p-4 rounded-xl shadow"><button id="add-entry-btn" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700">Yeni Giriş Ekle</button></div>
             </div>
-            <div class="mb-6 bg-white p-4 rounded-xl shadow"><h2 class="text-xl font-semibold text-center mb-4">Personel Giriş Sayıları</h2><div class="relative h-96"><canvas id="personelChart"></canvas></div></div>
+            <div class="mb-6 bg-white p-4 rounded-xl shadow">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-gray-700">Personel Giriş Sayıları</h2>
+                    <button id="download-chart-btn" class="bg-gray-200 text-gray-700 font-bold py-1 px-3 rounded-lg hover:bg-gray-300 text-sm">Grafiği İndir</button>
+                </div>
+                <div class="relative h-96"><canvas id="personelChart"></canvas></div>
+            </div>
             <div class="bg-white rounded-xl shadow overflow-hidden"><div class="table-container"><table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">İlçe</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mahalle</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Görevli Personel</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Megsis Onay</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Netigma Onay</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Müdür Onay</th></tr></thead><tbody id="task-table" class="bg-white divide-y divide-gray-200"><tr><td colspan="6" class="text-center p-8 text-gray-500"><div id="loading-state-takip">Veriler yükleniyor...</div></td></tr></tbody></table></div></div>
         </div>
     </div>
@@ -407,6 +415,7 @@
                             const mahalle = row['Mahalle Adı'];
                             const personel = row['GÖREVLİ PERSONEL'];
                             if (mahalle && personel) {
+                                 personelData.push({ ilce: sheetName, mahalle, personel });
                                  const megsis = row['MEGSİS ONAY TARİHİ'] ? excelDateToJSDate(row['MEGSİS ONAY TARİHİ']) : '';
                                  const netigma = row['NETİGMA ONAY TARİHİ'] ? excelDateToJSDate(row['NETİGMA ONAY TARİHİ']) : '';
                                  const mudur = row['MÜDÜR ONAY'] ? excelDateToJSDate(row['MÜDÜR ONAY']) : '';
@@ -436,18 +445,21 @@
                 saveEntryBtn.textContent = 'Kaydediliyor...';
                 try {
                     const wb = XLSX.utils.book_new();
-                    const ilceler = [...new Set(taskData.map(p => p.ilce))].sort();
+                    const ilceler = [...new Set(personelData.map(p => p.ilce))].sort();
                     
                     ilceler.forEach(ilce => {
-                        const sheetData = taskData
+                        const sheetData = personelData
                             .filter(p => p.ilce === ilce)
-                            .map(p => ({
-                                'Mahalle Adı': p.mahalle,
-                                'GÖREVLİ PERSONEL': p.personel,
-                                'MEGSİS ONAY TARİHİ': p.megsis || undefined,
-                                'NETİGMA ONAY TARİHİ': p.netigma || undefined,
-                                'MÜDÜR ONAY': p.mudur || undefined
-                            }));
+                            .map(p => {
+                                const task = taskData.find(t => t.ilce === p.ilce && t.mahalle === p.mahalle);
+                                return {
+                                    'Mahalle Adı': p.mahalle,
+                                    'GÖREVLİ PERSONEL': p.personel,
+                                    'MEGSİS ONAY TARİHİ': task ? task.megsis : undefined,
+                                    'NETİGMA ONAY TARİHİ': task ? task.netigma : undefined,
+                                    'MÜDÜR ONAY': task ? task.mudur : undefined
+                                };
+                            });
                         const ws = XLSX.utils.json_to_sheet(sheetData);
                         XLSX.utils.book_append_sheet(wb, ws, ilce);
                     });
@@ -471,9 +483,9 @@
                 }
             }
             function populateTakipFilters() { 
-                const ilceler = ['Tümü', ...new Set(taskData.map(p => p.ilce).sort())];
-                const mahalleler = ['Tümü', ...new Set(taskData.map(p => p.mahalle).sort())];
-                const personeller = ['Tümü', ...new Set(taskData.map(p => p.personel).sort())];
+                const ilceler = ['Tümü', ...new Set(personelData.map(p => p.ilce).sort())];
+                const mahalleler = ['Tümü', ...new Set(personelData.map(p => p.mahalle).sort())];
+                const personeller = ['Tümü', ...new Set(personelData.map(p => p.personel).sort())];
 
                 ilceFilter.innerHTML = ilceler.map(i => `<option value="${i}">${i}</option>`).join('');
                 mahalleFilter.innerHTML = mahalleler.map(m => `<option value="${m}">${m}</option>`).join('');
@@ -484,11 +496,20 @@
                 const selectedMahalle = mahalleFilter.value;
                 const selectedPersonel = personelFilter.value;
 
-                let displayData = taskData.filter(task => 
-                    (selectedIlce === 'Tümü' || task.ilce === selectedIlce) &&
-                    (selectedMahalle === 'Tümü' || task.mahalle === selectedMahalle) &&
-                    (selectedPersonel === 'Tümü' || task.personel === selectedPersonel)
-                );
+                let displayData = personelData.filter(p => 
+                    (selectedIlce === 'Tümü' || p.ilce === selectedIlce) &&
+                    (selectedPersonel === 'Tümü' || p.personel === selectedPersonel) &&
+                    (selectedMahalle === 'Tümü' || p.mahalle === selectedMahalle)
+                ).map(assignment => {
+                    const task = taskData.find(t => t.ilce === assignment.ilce && t.mahalle === assignment.mahalle);
+                    return {
+                        ...assignment,
+                        megsis: task ? task.megsis : '',
+                        netigma: task ? task.netigma : '',
+                        mudur: task ? task.mudur : ''
+                    };
+                }).sort((a,b) => (b.megsis || b.netigma) ? 1 : -1);
+
 
                 if(displayData.length === 0){
                     taskTable.innerHTML = `<tr><td colspan="6" class="text-center p-8 text-gray-500">Filtreye uygun kayıt bulunamadı.</td></tr>`;
@@ -521,10 +542,10 @@
                 isLoaded = true;
                 isTakipLoaded = true;
                 await loadTakipData();
-
+                
                 ilceFilter.addEventListener('change', () => {
                      const selectedIlce = ilceFilter.value;
-                     const mahalleler = ['Tümü', ...new Set(taskData.filter(p => selectedIlce === 'Tümü' || p.ilce === selectedIlce).map(p => p.mahalle).sort())];
+                     const mahalleler = ['Tümü', ...new Set(personelData.filter(p => selectedIlce === 'Tümü' || p.ilce === selectedIlce).map(p => p.mahalle).sort())];
                      mahalleFilter.innerHTML = mahalleler.map(m => `<option value="${m}">${m}</option>`).join('');
                      renderTakipTable();
                 });
@@ -534,18 +555,22 @@
                     modalTitle.textContent = 'Yeni İş Girişi';
                     modalIlce.disabled = false;
                     modalMahalle.disabled = false;
-                    const ilceler = [...new Set(taskData.map(p => p.ilce))].sort();
+                    const ilceler = [...new Set(personelData.map(p => p.ilce))].sort();
                     modalIlce.innerHTML = `<option value="">İlçe Seçin</option>` + ilceler.map(i => `<option value="${i}">${i}</option>`).join('');
                     modalMahalle.innerHTML = `<option value="">Önce İlçe Seçin</option>`;
+                    modalPersonel.value = '';
+                    megsisDate.value = '';
+                    netigmaDate.value = '';
+                    mudurDate.value = '';
                     modal.classList.remove('hidden');
                 });
                 modalIlce.addEventListener('change', () => {
                      const selectedIlce = modalIlce.value;
-                     const mahalleler = [...new Set(taskData.filter(p => p.ilce === selectedIlce).map(p => p.mahalle).sort())];
+                     const mahalleler = [...new Set(personelData.filter(p => p.ilce === selectedIlce).map(p => p.mahalle).sort())];
                      modalMahalle.innerHTML = `<option value="">Mahalle Seçin</option>` + mahalleler.map(m => `<option value="${m}">${m}</option>`).join('');
                 });
                 modalMahalle.addEventListener('change', () => {
-                    const gorevli = taskData.find(p => p.ilce === modalIlce.value && p.mahalle === modalMahalle.value);
+                    const gorevli = personelData.find(p => p.ilce === modalIlce.value && p.mahalle === modalMahalle.value);
                     modalPersonel.value = gorevli ? gorevli.personel : 'Atanmamış';
                 });
                 cancelBtn.addEventListener('click', () => modal.classList.add('hidden'));
