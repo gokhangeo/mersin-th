@@ -335,7 +335,25 @@
                 if (!chartContainer.classList.contains('hidden')) { renderThaCharts(completeDistrictData); }
             }
             
-            function downloadExcel() { /* ... unchanged ... */ }
+            function downloadExcel() {
+                const searchTerm = searchInput.value.toLowerCase().trim();
+                const dataToExport = allData.filter(item => 
+                    item.ilce === currentIlce &&
+                    (searchTerm === '' || item.nitelik.toLowerCase().includes(searchTerm))
+                ).map(row => ({
+                    'Nitelik': row.nitelik,
+                    'Kod': row.kod,
+                    'Adet': row.adet,
+                    'Ekonomik Değeri': row.ekonomikDegeri,
+                    'Yüzölçüm (m²)': row.yuzolcumM2,
+                    'Yüzölçüm (ha)': row.yuzolcumHa
+                }));
+
+                const ws = XLSX.utils.json_to_sheet(dataToExport);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, `${currentIlce} Raporu`);
+                XLSX.writeFile(wb, `${currentIlce.toLowerCase().replace(/ /g, '_')}_tha_raporu.xlsx`);
+            }
             
             async function init() {
                 if(isLoaded) return;
@@ -399,50 +417,50 @@
             const loadingState = document.getElementById('loading-state-takip');
             const downloadChartBtn = document.getElementById('download-chart-btn');
             const downloadTakipExcelBtn = document.getElementById('download-takip-excel-btn');
-            let personelData = [], taskData = [], personelFileSha = '';
+            let taskData = [], personelFileSha = '';
             let personelChartInstance;
+            let currentDisplayData = [];
             const GITHUB_FILE_URL = 'https://api.github.com/repos/gokhangeo/mersin-th/contents/Personel.xlsx';
             
             Chart.register(ChartDataLabels);
 
             async function loadTakipData() {
                  try {
-                    loadingState.textContent = 'GitHub\'dan veriler okunuyor...';
-                    const token = GITHUB_TOKEN_PARTS.join('');
-                    const response = await fetch(GITHUB_FILE_URL, { headers: { 'Authorization': `token ${token}` } });
-                    if (!response.ok) throw new Error('GitHub\'dan Personel verisi alınamadı.');
-                    const fileData = await response.json();
-                    personelFileSha = fileData.sha;
-                    const fileContent = atob(fileData.content);
-                    const workbook = XLSX.read(fileContent, { type: 'binary' });
-                    personelData = [];
-                    taskData = [];
-                    workbook.SheetNames.forEach(sheetName => {
-                        const json = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
-                        json.forEach(row => {
-                            const mahalle = row['Mahalle Adı'];
-                            const personel = row['GÖREVLİ PERSONEL'];
-                            if (mahalle && personel) {
-                                 const megsis = row['MEGSİS ONAY TARİHİ'] ? excelDateToJSDate(row['MEGSİS ONAY TARİHİ']) : '';
-                                 const netigma = row['NETİGMA ONAY TARİHİ'] ? excelDateToJSDate(row['NETİGMA ONAY TARİHİ']) : '';
-                                 const mudur = row['MÜDÜR ONAY'] ? excelDateToJSDate(row['MÜDÜR ONAY']) : '';
-                                 taskData.push({ ilce: sheetName, mahalle, personel, megsis, netigma, mudur });
-                            }
-                        });
-                    });
-                    populateTakipFilters();
-                    renderTakipTable();
-                    if(loadingState && loadingState.parentElement) loadingState.parentElement.parentElement.remove();
-                } catch (error) {
-                    console.error('İş Takip veri yüklenirken hata:', error);
-                    if(loadingState) {
-                        loadingState.textContent = "Veriler yüklenemedi.";
-                        loadingState.classList.add('text-red-500');
-                    }
-                }
+                     loadingState.textContent = 'GitHub\'dan veriler okunuyor...';
+                     const token = GITHUB_TOKEN_PARTS.join('');
+                     const response = await fetch(GITHUB_FILE_URL, { headers: { 'Authorization': `token ${token}` } });
+                     if (!response.ok) throw new Error('GitHub\'dan Personel verisi alınamadı.');
+                     const fileData = await response.json();
+                     personelFileSha = fileData.sha;
+                     const fileContent = atob(fileData.content);
+                     const workbook = XLSX.read(fileContent, { type: 'binary' });
+                     taskData = [];
+                     workbook.SheetNames.forEach(sheetName => {
+                         const json = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+                         json.forEach(row => {
+                             const mahalle = row['Mahalle Adı'];
+                             const personel = row['GÖREVLİ PERSONEL'];
+                             if (mahalle && personel) {
+                                  const megsis = row['MEGSİS ONAY TARİHİ'] ? excelDateToJSDate(row['MEGSİS ONAY TARİHİ']) : '';
+                                  const netigma = row['NETİGMA ONAY TARİHİ'] ? excelDateToJSDate(row['NETİGMA ONAY TARİHİ']) : '';
+                                  const mudur = row['MÜDÜR ONAY'] ? excelDateToJSDate(row['MÜDÜR ONAY']) : '';
+                                  taskData.push({ ilce: sheetName, mahalle, personel, megsis, netigma, mudur });
+                             }
+                         });
+                     });
+                     populateTakipFilters();
+                     renderTakipTable();
+                     if(loadingState && loadingState.parentElement) loadingState.parentElement.parentElement.remove();
+                 } catch (error) {
+                     console.error('İş Takip veri yüklenirken hata:', error);
+                     if(loadingState) {
+                         loadingState.textContent = "Veriler yüklenemedi.";
+                         loadingState.classList.add('text-red-500');
+                     }
+                 }
             }
             function excelDateToJSDate(excelDate) {
-                if(typeof excelDate === 'string' && excelDate.includes('-')) return excelDate;
+                if(typeof excelDate === 'string' && (excelDate.includes('-') || excelDate.includes('.'))) return new Date(excelDate.replace(/\./g, '-')).toISOString().split('T')[0];
                 if(typeof excelDate !== 'number') return '';
                 const date = new Date((excelDate - 25569) * 86400 * 1000);
                 return date.toISOString().split('T')[0];
@@ -452,11 +470,12 @@
                 saveEntryBtn.textContent = 'Kaydediliyor...';
                 try {
                     const wb = XLSX.utils.book_new();
-                    const ilceler = [...new Set(taskData.map(p => p.ilce))].sort();
+                    const ilceler = [...new Set(taskData.map(p => p.ilce))].sort((a,b) => a.localeCompare(b, 'tr'));
                     
                     ilceler.forEach(ilce => {
                         const sheetData = taskData
                             .filter(p => p.ilce === ilce)
+                            .sort((a,b) => a.mahalle.localeCompare(b.mahalle, 'tr'))
                             .map(p => ({
                                 'Mahalle Adı': p.mahalle,
                                 'GÖREVLİ PERSONEL': p.personel,
@@ -487,33 +506,39 @@
                 }
             }
             function populateTakipFilters() { 
-                const ilceler = ['Tümü', ...new Set(taskData.map(p => p.ilce).sort())];
-                const mahalleler = ['Tümü', ...new Set(taskData.map(p => p.mahalle).sort())];
-                const personeller = ['Tümü', ...new Set(taskData.map(p => p.personel).sort())];
+                const ilceler = ['Tümü', ...[...new Set(taskData.map(p => p.ilce))].sort((a,b) => a.localeCompare(b, 'tr'))];
+                const mahalleler = ['Tümü', ...[...new Set(taskData.map(p => p.mahalle))].sort((a,b) => a.localeCompare(b, 'tr'))];
+                const personeller = ['Tümü', ...[...new Set(taskData.map(p => p.personel))].sort((a,b) => a.localeCompare(b, 'tr'))];
 
                 ilceFilter.innerHTML = ilceler.map(i => `<option value="${i}">${i}</option>`).join('');
                 mahalleFilter.innerHTML = mahalleler.map(m => `<option value="${m}">${m}</option>`).join('');
                 personelFilter.innerHTML = personeller.map(p => `<option value="${p}">${p}</option>`).join('');
-             }
+            }
             function renderTakipTable() { 
                 const selectedIlce = ilceFilter.value;
                 const selectedMahalle = mahalleFilter.value;
                 const selectedPersonel = personelFilter.value;
 
-                let displayData = taskData.filter(task => 
+                currentDisplayData = taskData.filter(task => 
                     (selectedIlce === 'Tümü' || task.ilce === selectedIlce) &&
                     (selectedMahalle === 'Tümü' || task.mahalle === selectedMahalle) &&
                     (selectedPersonel === 'Tümü' || task.personel === selectedPersonel)
                 );
 
-                if (selectedPersonel !== 'Tümü') {
-                    displayData.sort((a,b) => (b.megsis || b.netigma) ? 1 : (a.megsis || a.netigma) ? -1 : 0);
-                }
+                // Sort the data: entries with dates on top, then alphabetically
+                currentDisplayData.sort((a, b) => {
+                    const aHasDate = a.megsis || a.netigma || a.mudur;
+                    const bHasDate = b.megsis || b.netigma || b.mudur;
+                    if (aHasDate && !bHasDate) return -1; // a (with date) comes before b (without)
+                    if (!aHasDate && bHasDate) return 1; // b comes before a
+                    // Secondary sort: alphabetically by ilce then mahalle
+                    return a.ilce.localeCompare(b.ilce, 'tr-TR') || a.mahalle.localeCompare(b.mahalle, 'tr-TR');
+                });
 
-                if(displayData.length === 0){
+                if(currentDisplayData.length === 0){
                     taskTable.innerHTML = `<tr><td colspan="6" class="text-center p-8 text-gray-500">Filtreye uygun kayıt bulunamadı.</td></tr>`;
                 } else {
-                     taskTable.innerHTML = displayData.map((task) => `
+                     taskTable.innerHTML = currentDisplayData.map((task) => `
                         <tr class="hover:bg-gray-50" data-task-ilce="${task.ilce}" data-task-mahalle="${task.mahalle}">
                             <td class="px-6 py-4 whitespace-nowrap">${task.ilce}</td>
                             <td class="px-6 py-4 whitespace-nowrap">${task.mahalle}</td>
@@ -524,9 +549,9 @@
                         </tr>`).join('');
                 }
                  document.querySelectorAll('#task-table tr').forEach(row => {
-                    row.addEventListener('click', () => openEditModal(row.dataset.taskIlce, row.dataset.taskMahalle));
-                });
-                renderTakipChart(displayData);
+                     row.addEventListener('click', () => openEditModal(row.dataset.taskIlce, row.dataset.taskMahalle));
+                 });
+                renderTakipChart(currentDisplayData);
             }
             function renderTakipChart(data) { 
                 const ctx = document.getElementById('personelChart').getContext('2d');
@@ -567,7 +592,27 @@
                     plugins: [ChartDataLabels]
                 });
             }
-            function openEditModal(ilce, mahalle) { /* ... unchanged ... */ }
+            function openEditModal(ilce, mahalle) {
+                if (!ilce || !mahalle) return;
+                const task = taskData.find(t => t.ilce === ilce && t.mahalle === mahalle);
+                if (!task) return;
+
+                modalTitle.textContent = `İş Girişini Düzenle`;
+                
+                modalIlce.innerHTML = `<option value="${task.ilce}">${task.ilce}</option>`;
+                modalIlce.value = task.ilce;
+                modalIlce.disabled = true;
+
+                modalMahalle.innerHTML = `<option value="${task.mahalle}">${task.mahalle}</option>`;
+                modalMahalle.value = task.mahalle;
+                modalMahalle.disabled = true;
+
+                modalPersonel.value = task.personel;
+                megsisDate.value = task.megsis || '';
+                netigmaDate.value = task.netigma || '';
+                mudurDate.value = task.mudur || '';
+                modal.classList.remove('hidden');
+            }
             async function init() {
                 if(isLoaded) return;
                 isLoaded = true;
@@ -576,7 +621,7 @@
                 
                 ilceFilter.addEventListener('change', () => {
                      const selectedIlce = ilceFilter.value;
-                     const mahalleler = ['Tümü', ...new Set(taskData.filter(p => selectedIlce === 'Tümü' || p.ilce === selectedIlce).map(p => p.mahalle).sort())];
+                     const mahalleler = ['Tümü', ...[...new Set(taskData.filter(p => selectedIlce === 'Tümü' || p.ilce === selectedIlce).map(p => p.mahalle))].sort((a,b) => a.localeCompare(b, 'tr'))];
                      mahalleFilter.innerHTML = mahalleler.map(m => `<option value="${m}">${m}</option>`).join('');
                      renderTakipTable();
                 });
@@ -587,7 +632,7 @@
                     modalTitle.textContent = 'Yeni İş Girişi';
                     modalIlce.disabled = false;
                     modalMahalle.disabled = false;
-                    const ilceler = [...new Set(taskData.map(p => p.ilce))].sort();
+                    const ilceler = [...new Set(taskData.map(p => p.ilce))].sort((a,b) => a.localeCompare(b, 'tr'));
                     modalIlce.innerHTML = `<option value="">İlçe Seçin</option>` + ilceler.map(i => `<option value="${i}">${i}</option>`).join('');
                     modalMahalle.innerHTML = `<option value="">Önce İlçe Seçin</option>`;
                     modalPersonel.value = '';
@@ -598,12 +643,29 @@
                 });
                 modalIlce.addEventListener('change', () => {
                      const selectedIlce = modalIlce.value;
-                     const mahalleler = [...new Set(taskData.filter(p => p.ilce === selectedIlce).map(p => p.mahalle).sort())];
+                     const mahalleler = [...new Set(taskData.filter(p => p.ilce === selectedIlce).map(p => p.mahalle))].sort((a,b) => a.localeCompare(b, 'tr'));
                      modalMahalle.innerHTML = `<option value="">Mahalle Seçin</option>` + mahalleler.map(m => `<option value="${m}">${m}</option>`).join('');
+                     modalPersonel.value = '';
+                     megsisDate.value = '';
+                     netigmaDate.value = '';
+                     mudurDate.value = '';
                 });
                 modalMahalle.addEventListener('change', () => {
-                    const gorevli = taskData.find(p => p.ilce === modalIlce.value && p.mahalle === modalMahalle.value);
-                    modalPersonel.value = gorevli ? gorevli.personel : 'Atanmamış';
+                    const selectedIlce = modalIlce.value;
+                    const selectedMahalle = modalMahalle.value;
+                    const gorevli = taskData.find(p => p.ilce === selectedIlce && p.mahalle === selectedMahalle);
+                    
+                    if (gorevli) {
+                        modalPersonel.value = gorevli.personel || 'Atanmamış';
+                        megsisDate.value = gorevli.megsis || '';
+                        netigmaDate.value = gorevli.netigma || '';
+                        mudurDate.value = gorevli.mudur || '';
+                    } else {
+                        modalPersonel.value = 'Atanmamış';
+                        megsisDate.value = '';
+                        netigmaDate.value = '';
+                        mudurDate.value = '';
+                    }
                 });
                 cancelBtn.addEventListener('click', () => modal.classList.add('hidden'));
 
@@ -633,6 +695,21 @@
                     link.href = image;
                     link.download = 'personel-giris-grafigi.jpg';
                     link.click();
+                });
+
+                downloadTakipExcelBtn.addEventListener('click', () => {
+                    const dataToExport = currentDisplayData.map(row => ({
+                        'İlçe': row.ilce,
+                        'Mahalle': row.mahalle,
+                        'Görevli Personel': row.personel,
+                        'Megsis Onay': row.megsis,
+                        'Netigma Onay': row.netigma,
+                        'Müdür Onay': row.mudur
+                    }));
+                    const ws = XLSX.utils.json_to_sheet(dataToExport);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, 'İş Takip Raporu');
+                    XLSX.writeFile(wb, 'is_takip_raporu.xlsx');
                 });
             }
             return init;
