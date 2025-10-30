@@ -287,7 +287,7 @@
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Netigma Girişi</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Müdür Onayı</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tamamlanan</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Birim Başına Ort. İş Günü</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ort. İş Günü Başına Birim</th>
                                 </tr>
                             </thead>
                             <tbody id="performans-table-body" class="bg-white divide-y divide-gray-200">
@@ -348,12 +348,10 @@
         
         function toTitleCase(str) {
             if (!str) return '';
-            return str.toString().split(' ').map(word => {
-                if (word.length === 0) return '';
-                const firstChar = word.charAt(0).toLocaleUpperCase('tr-TR');
-                const rest = word.slice(1).toLocaleLowerCase('tr-TR');
-                return firstChar + rest;
-            }).join(' ');
+            // Önce tüm metni küçük harfe çevir (Türkçe karakter desteğiyle)
+            let lower = str.toLocaleLowerCase('tr-TR');
+            // Kelime başlarını büyük harf yap (Türkçe karakter desteğiyle)
+            return lower.replace(/\b\w/g, char => char.toLocaleUpperCase('tr-TR'));
         }
         
         function calculateWorkDays(startDate, endDate) {
@@ -919,14 +917,16 @@
                     
                     const completedCount = personTasks.filter(t => t.megsis && t.netigma && t.mudur).length;
                     
-                    let avgWorkDaysPerUnit = '-';
+                    let avgWorkDaysPerUnit = '0.0'; // Default to 0.0
                     if (megsisDates.length > 0 && completedCount > 0) {
                         const firstMegsisDate = megsisDates[0];
-                        const workDays = calculateWorkDays(firstMegsisDate, now);
+                        const today = new Date();
+                        const workDays = calculateWorkDays(firstMegsisDate, today);
+                        
                         if (workDays > 0) {
-                            avgWorkDaysPerUnit = (workDays / completedCount).toFixed(1);
-                        } else if (workDays === 0 && completedCount > 0) {
-                             avgWorkDaysPerUnit = '0.0';
+                            avgWorkDaysPerUnit = (completedCount / workDays).toFixed(2); // New logic: Units / Day
+                        } else if (completedCount > 0 && workDays === 0) {
+                             avgWorkDaysPerUnit = '-'; // Tamamlandı ama iş günü 0, tanımsız
                         }
                     }
 
